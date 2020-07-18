@@ -1,0 +1,42 @@
+Wed Jul  8 18:02:20 EDT 2020
+- this directory is a work in progress at the moment. many of these scripts had
+  initial versions in one of the subdirectories of ~jss97/datasets and they may
+  have been special-cased, copied around and special-cased again, etc. here i'm
+  attempting to make unified versions that are modular and therefore more
+  general-purpose than what may have existed before. 
+
+- here I'll try to describe a general workflow, identifying the relevant
+  scripts and any assumptions they make about associated inputs: 
+
+  > creating a summary file with sdsorter (and pasting columns from accompanying CSVs) 
+    + use make_sdsorter_summary.sh; takes path to top-level directory, assumes
+      docked files are in that directory and named *_docked.sdf.gz,
+      looks for RFScore outputs as CSVs in the same directory, 
+      looks for CNN output in subdirectories relative to the first directory
+      and named after the model
+
+    + creates output space-separated CSV with column names in first row, i.e. 
+Rank Title Vina MW Target File RFScore-VS RFScore-4	dense_seed0_CNNaffinity dense_seed0_CNNscore dense_seed1_CNNaffinity dense_seed1_CNNscore dense_seed2_CNNaffinity dense_seed2_CNNscore dense_seed3_CNNaffinity dense_seed3_CNNscore dense_seed4_CNNaffinity dense_seed4_CNNscore crossdock_default2018_seed0_CNNaffinity crossdock_default2018_seed0_CNNscore crossdock_default2018_seed1_CNNaffinity crossdock_default2018_seed1_CNNscore crossdock_default2018_seed2_CNNaffinity crossdock_default2018_seed2_CNNscore crossdock_default2018_seed3_CNNaffinity crossdock_default2018_seed3_CNNscore crossdock_default2018_seed4_CNNaffinity crossdock_default2018_seed4_CNNscore general_default2018_seed0_CNNaffinity general_default2018_seed0_CNNscore general_default2018_seed1_CNNaffinity general_default2018_seed1_CNNscore general_default2018_seed2_CNNaffinity general_default2018_seed2_CNNscore general_default2018_seed3_CNNaffinity general_default2018_seed3_CNNscore general_default2018_seed4_CNNaffinity general_default2018_seed4_CNNscore 
+
+    + subsequent steps take this output, which can be easily generated from
+    whatever your score files are by just taking the sdsorter output and
+    pasting any additional columns together
+
+  > creating a pickle of a Pandas DataFrame of that info 
+
+    + use sdsorter_to_pickle.py; takes list of dirnames that contain files
+    named "sdsorter.summary" that have format as described in step 1 above,
+    dumps out a pickle of the Pandas DataFrame created from that information
+    (negating the Vina column and assigning a label based on the filename)
+
+  > creating a summary file of predictions, typically per-compound 
+
+    + make_summary.py creates output CSV files with columns that are 
+    LABEL PREDICTION TARGET METHOD, and the prediction is obtained by taking
+    the maximum score after doing a groupby with respect to target and compound
+ 
+  > calculating summary statistics by target
+    
+    + aucbytarget.py creates by-target grids of plots showing ROC curves for
+    all methods whose ${methodname}.summary files are provided, as well as
+    boxplots of AUCs
