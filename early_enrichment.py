@@ -28,6 +28,7 @@ plt.rc('ytick', labelsize=SMALL_SIZE)
 plt.rc('legend', fontsize=SMALL_SIZE)  
 plt.rc('figure', titlesize=BIGGER_SIZE)
 
+# calling this here means the above is just being overridden anyway...
 plt.style.use('seaborn-white')
 mpl.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
@@ -97,6 +98,18 @@ name_map = {'dense-CNNscore-mean': 'Dense\n(Pose)', 'dense-CNNaffinity-mean': 'D
         'crossdock_default2018_consensus': 'Cross-Docked\n(Consensus)', 
         'general_default2018_consensus': 'General\n(Consensus)'}
 
+reverse_map = {'Dense\n(Pose)': 'dense-CNNscore-mean',
+        'Dense\n(Affinity)': 'dense-CNNaffinity-mean', 
+        'Cross-Docked\n(Pose)': 'crossdock_default2018-CNNscore-mean', 
+        'Cross-Docked\n(Affinity)': 'crossdock_default2018-CNNaffinity-mean',
+        'General\n(Pose)': 'general_default2018-CNNscore-mean', 
+        'General\n(Affinity)': 'general_default2018-CNNaffinity-mean', 
+        'RFScore-VS': 'rfscore-vs', 
+        'RFScore-4': 'rf-score-4', 
+        'Dense\n(Consensus)': 'dense_consensus', 
+        'Cross-Docked\n(Consensus)': 'crossdock_default2018_consensus', 
+        'General\n(Consensus)': 'general_default2018_consensus'}
+
 def sortedgroupedbar(ax, x,y, groupby, data=None, width=0.7, palette=None, **kwargs):
     order = np.zeros(len(data))
     df = data.copy()
@@ -139,7 +152,7 @@ def sortedgroupedbar(ax, x,y, groupby, data=None, width=0.7, palette=None, **kwa
 
 # preds are LABELS PREDICTIONS TARGET METHOD 
 # only args are summary files
-cols = ['Labels', 'Predictions', 'Target', 'Method']
+cols = ['Labels', 'Predictions', 'Target', 'Title', 'Method']
 # dict of baseline enrichment for each target
 baseline_enrichment = {}
 for i,fname in enumerate(sys.argv[1:]):
@@ -174,6 +187,17 @@ for i,fname in enumerate(sys.argv[1:]):
         allEFs = EF1.copy()
 
 allEFs.reset_index(level='Target', inplace=True)
+# let's dump out a "by target" summary file
+methods = allEFs['Method'].unique()
+for method in methods:
+    thismethod = allEFs.loc[allEFs['Method'] == method][['Target', 'EF1\%']]
+    if method in ['Vina', 'Vinardo', 'RFScore-VS', 'RFScore-4'] or method not in reverse_map:
+        out_method = method
+    else:
+        out_method = reverse_map[method]
+    thismethod.to_csv('%s_EF1_bytarget'%(out_method), sep='\t',
+            encoding='utf-8', index=False, header=False)
+
 allEFs['Target'] = allEFs['Target'].replace('_', ' ', regex=True)
 
 fig,ax = plt.subplots(figsize=(12.8,9.6))
@@ -195,6 +219,26 @@ ax.set_ylabel('EF1\%')
 ax.set_xlabel('')
 fig.savefig('EF1_boxplot.pdf', bbox_inches='tight')
 
+fig,ax = plt.subplots(figsize=(16, 16))
+# sort by target with increasing median EF1%, then in the sorted grouped barplot we'll also sort by method 
+# within the target. this is all a pain in the butt, can it be done more efficiently?
+grouped = allEFs.groupby(['Target'], as_index=False)
+medians = grouped['EF1\%'].median()
+medians.sort_values(by='EF1\%', inplace=True)
+sorter = medians['Target'].tolist()
+sorter_index = dict(zip(sorter,range(len(sorter))))
+allEFs['tmp_rank'] = allEFs['Target'].map(sorter_index)
+allEFs.sort_values(['tmp_rank'], ascending=True, inplace=True)
+allEFs.drop('tmp_rank', 1, inplace=True)
+sns.stripplot(x="EF1\%", y="Target", hue="Method", data=allEFs,
+        palette=paper_palettes, alpha=0.7, size=10, ax=ax)
+ax_ylims = ax.get_ylim()
+ax.plot([1, 1], [ax_ylims[0], ax_ylims[1]], linestyle='--', color='gray', lw=3,
+                    zorder=1, alpha=0.5)
+ax.set_ylim(ax_ylims)
+ax.legend(title='Method', frameon=True, loc='upper right', ncol=3)
+fig.savefig('EF1_stripplot.pdf', bbox_inches='tight')
+
 SMALL_SIZE=90
 MEDIUM_SIZE=92
 BIGGER_SIZE=94
@@ -208,17 +252,6 @@ plt.rc('legend', fontsize=SMALL_SIZE)
 plt.rc('figure', titlesize=BIGGER_SIZE) 
 
 fig,ax = plt.subplots(figsize=(500,80))
-# sort by target with increasing median EF1%, then in the sorted grouped barplot we'll also sort by method 
-# within the target. this is all a pain in the butt, can it be done more efficiently?
-grouped = allEFs.groupby(['Target'], as_index=False)
-medians = grouped['EF1\%'].median()
-medians.sort_values(by='EF1\%', inplace=True)
-sorter = medians['Target'].tolist()
-sorter_index = dict(zip(sorter,range(len(sorter))))
-allEFs['tmp_rank'] = allEFs['Target'].map(sorter_index)
-allEFs.sort_values(['tmp_rank'], ascending=True, inplace=True)
-allEFs.drop('tmp_rank', 1, inplace=True)
-
 sortedgroupedbar(ax, x="Target", y="EF1\%", groupby="Method", data=allEFs, width=0.7, palette=paper_palettes)
 # grouped = allEFs.groupby(['Target'], as_index=False)
 # medians = grouped['EF1\%'].median()

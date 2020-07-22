@@ -14,10 +14,15 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import matplotlib.lines as mlines
 
-SMALL_SIZE=16
-MEDIUM_SIZE=20
-BIGGER_SIZE=24
-SUBFIG_SIZE=24
+plt.style.use('seaborn-white')
+sns.set_palette(sns.color_palette("hls", 8))
+mpl.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
+mpl.rc('text', usetex=True)
+
+SMALL_SIZE=20
+MEDIUM_SIZE=24
+BIGGER_SIZE=26
+SUBFIG_SIZE=28
 
 plt.rc('font', size=BIGGER_SIZE)          # controls default text sizes
 plt.rc('axes', titlesize=MEDIUM_SIZE)     # fontsize of the axes title
@@ -27,11 +32,6 @@ plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
 plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
 plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 
-plt.style.use('seaborn-white')
-mpl.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
-mpl.rc('text', usetex=True)
-
-sns.set_palette(sns.color_palette("hls", 8))
 paper_palettes = {}
 paper_palettes['Vina'] = '#000000' #the original CNN paper used ccbb44
 paper_palettes['CSAR'] = '#332288'
@@ -51,43 +51,63 @@ paper_palettes['Overlap Mult'] = sns.color_palette()[2]
 paper_palettes['Overlap Sum'] = sns.color_palette()[4]
 paper_palettes['Vinardo'] = '#BDC3C7'
 paper_palettes['dense-CNNscore-mean'] = '#82E0AA'
+paper_palettes['Dense\n(Pose)'] = '#82E0AA'
 paper_palettes['dense-CNNaffinity-mean'] = '#28B463'
+paper_palettes['Dense\n(Affinity)'] = '#28B463'
 paper_palettes['dense-aff-mean'] = '#28B463'
 paper_palettes['dense_consensus'] = '#cdf2dd'
-paper_palettes['dense consensus'] = '#cdf2dd'
+paper_palettes['Dense\n(Consensus)'] = '#cdf2dd'
 paper_palettes['crossdock_default2018-CNNscore-mean'] = '#E59866'
+paper_palettes['Cross-Docked\n(Pose)'] = '#E59866'
 paper_palettes['crossdock_default2018-CNNaffinity-mean'] = '#BA4A00'
-paper_palettes['crossdock default2018-CNNaffinity-mean'] = '#BA4A00'
 paper_palettes['crossdocked2018-CNNaffinity-mean'] = '#BA4A00'
-paper_palettes['crossdock default2018 consensus'] = '#f0c4a7'
+paper_palettes['Cross-Docked\n(Affinity)'] = '#BA4A00'
 paper_palettes['crossdock_default2018_consensus'] = '#f0c4a7'
-paper_palettes['general_default2018-CNNscore-mean'] = '#D7BDE2'
+paper_palettes['Cross-Docked\n(Consensus)'] = '#f0c4a7'
+paper_palettes['general_default2018-CNNscore-mean'] = '#b788cb'
+paper_palettes['General\n(Pose)'] = '#b788cb'
 paper_palettes['general_default2018-CNNaffinity-mean'] = '#9B59B6'
-paper_palettes['general default2018-CNNaffinity-mean'] = '#9B59B6'
+paper_palettes['General\n(Affinity)'] = '#9B59B6'
 paper_palettes['generalset2018-CNNaffinity-mean'] = '#9B59B6'
 paper_palettes['general_default2018_consensus'] = '#e1d2e9'
-paper_palettes['general default2018 consensus'] = '#e1d2e9'
+paper_palettes['General\n(Consensus)'] = '#e1d2e9'
 paper_palettes['rf-score-vs'] = '#D98880'
 paper_palettes['rf-score-4'] = '#A93226'
 paper_palettes['Dense (Pose)'] = '#82E0AA'
 paper_palettes['Dense (Affinity)'] = '#28B463'
-paper_palettes['Cross-Docked Set (Pose)'] = '#E59866'
-paper_palettes['Cross-Docked Set (Affinity)'] = '#BA4A00'
-paper_palettes['General Set (Pose)'] = '#D7BDE2'
-paper_palettes['General Set (Affinity)'] = '#9B59B6'
+paper_palettes['Cross-Docked\n(Pose)'] = '#E59866'
+paper_palettes['Cross-Docked\n(Affinity)'] = '#BA4A00'
+paper_palettes['General (Pose)'] = '#b788cb'
+paper_palettes['General (Affinity)'] = '#9B59B6'
 paper_palettes['RFScore-VS'] = '#5DADE2'
 paper_palettes['RFScore-4'] = '#2874A6'
 
-name_map = {'dense-CNNscore-mean': 'Dense (Pose)', 'dense-CNNaffinity-mean': 'Dense (Affinity)',
-        'crossdocked_default2018-CNNscore-mean': 'Cross-Docked Set (Pose)', 
-        'crossdock_default2018-CNNaffinity-mean': 'Cross-Docked Set (Affinity)', 
-        'general_default2018-CNNscore-mean': 'General Set (Pose)',
-        'general_default2018-CNNaffinity-mean': 'General Set (Affinity)', 
+name_map = {'dense-CNNscore-mean': 'Dense\n(Pose)', 'dense-CNNaffinity-mean': 'Dense\n(Affinity)',
+        'crossdocked_default2018-CNNscore-mean': 'Cross-Docked\n(Pose)', 
+        'crossdock_default2018-CNNscore-mean': 'Cross-Docked\n(Pose)', 
+        'crossdock_default2018-CNNaffinity-mean': 'Cross-Docked\n(Affinity)', 
+        'general_default2018-CNNscore-mean': 'General\n(Pose)',
+        'general_default2018-CNNaffinity-mean': 'General\n(Affinity)', 
         'rfscore-vs': 'RFScore-VS',
         'rf-score-4': 'RFScore-4',
-        'dense-aff-mean': 'Dense (Affinity)',
-        'crossdocked2018-CNNaffinity-mean': 'Cross-Docked Set (Affinity)', 
-        'generalset2018-CNNaffinity-mean': 'General Set (Affinity)'}
+        'dense-aff-mean': 'Dense\n(Affinity)',
+        'crossdocked2018-CNNaffinity-mean': 'Cross-Docked\n(Affinity)', 
+        'generalset2018-CNNaffinity-mean': 'General\n(Affinity)', 
+        'dense_consensus': 'Dense\n(Consensus)', 
+        'crossdock_default2018_consensus': 'Cross-Docked\n(Consensus)', 
+        'general_default2018_consensus': 'General\n(Consensus)'}
+
+reverse_map = {'Dense\n(Pose)': 'dense-CNNscore-mean',
+        'Dense\n(Affinity)': 'dense-CNNaffinity-mean', 
+        'Cross-Docked\n(Pose)': 'crossdock_default2018-CNNscore-mean', 
+        'Cross-Docked\n(Affinity)': 'crossdock_default2018-CNNaffinity-mean',
+        'General\n(Pose)': 'general_default2018-CNNscore-mean', 
+        'General\n(Affinity)': 'general_default2018-CNNaffinity-mean', 
+        'RFScore-VS': 'rfscore-vs', 
+        'RFScore-4': 'rf-score-4', 
+        'Dense\n(Consensus)': 'dense_consensus', 
+        'Cross-Docked\n(Consensus)': 'crossdock_default2018_consensus', 
+        'General\n(Consensus)': 'general_default2018_consensus'}
 
 swarm_markers = [r'$\clubsuit$', r'$\spadesuit$', '^', '>', '*',
         's', 'o', '<', 'X', 'v', 'h', r'$\P$', '+', '1', '2', '3', '4', 'x']
@@ -134,7 +154,11 @@ def mean_auc(data, methods, targets, noskill, args):
         overall_stats = {}
         bytarget = {}
         for method in methods:
-            bytarget[method] = open('%s_%s'%(method,args.outprefix),'w')
+            if method in reverse_map:
+                out_method = reverse_map[method]
+                bytarget[method] = open('%s_%s'%(out_method,args.outprefix),'w')
+            else:
+                bytarget[method] = open('%s_%s'%(method,args.outprefix),'w')
         if args.make_boxplot:
             boxplot_dat = []
         total_plots = len(targets)
@@ -162,7 +186,7 @@ def mean_auc(data, methods, targets, noskill, args):
                 summary_stats = calc_auc_and_pr(t,l)
                 auc,fpr,tpr = summary_stats['auc']
                 aps,precision,recall = summary_stats['aupr']
-                bytarget[t[1]].write('%s %.3f %.3f\n' %(t[0],auc,aps))
+                bytarget[t[1]].write('%s %.3f %.3f\n' %(t[0].replace(' ', '_'),auc,aps))
                 if args.make_boxplot:
                     boxplot_dat.append({'Method' : t[1], 'AUC' : auc, 'Target'
                         : t[0], 'APS': aps})
@@ -282,7 +306,7 @@ def mean_auc(data, methods, targets, noskill, args):
         fig.savefig(args.outprefix+'_%s.pdf'%chosen_stat, bbox_inches='tight')
 
         #now do boxplots
-        auc_fig,auc_ax = plt.subplots()
+        auc_fig,auc_ax = plt.subplots(figsize=(12.8,9.6))
         aps_fig,aps_ax = plt.subplots()
         if args.make_boxplot:
             if args.color_scheme:
@@ -366,7 +390,7 @@ def mean_auc(data, methods, targets, noskill, args):
                     symbol_xlims = symbol_ax.get_xlim()
                     symbol_ax.plot([symbol_xlims[0],symbol_xlims[1]],[0.5, 0.5], linestyle='--', color='gray',
                             zorder=1, alpha=0.5)
-                    if not args.color_scheme == 'overlap':
+                    if not args.color_scheme == 'overlap' and not args.color_scheme == 'vspaper':
                         for tick in symbol_ax.get_xticklabels():
                             tick.set_rotation(90)
                     symbol_fig.savefig(args.outprefix+'_differentmarkers_auc_boxplot.pdf', bbox_inches='tight')
@@ -392,7 +416,7 @@ def mean_auc(data, methods, targets, noskill, args):
             auc_xlims = auc_ax.get_xlim()
             auc_ax.plot([auc_xlims[0],auc_xlims[1]],[0.5, 0.5], linestyle='--', color='gray',
                     zorder=1, alpha=0.5)
-            if not args.color_scheme == 'overlap':
+            if not args.color_scheme == 'overlap' and not args.color_scheme == 'vspaper':
                 for tick in auc_ax.get_xticklabels():
                     tick.set_rotation(90)
             #APS
@@ -444,11 +468,11 @@ use those color schemes')
                 contents = line.split()
                 target = contents[2].replace('_', ' ')
                 if args.color_scheme == 'vspaper':
-                    method = contents[3]
+                    method = contents[4]
                     if method not in ['Vina', 'Vinardo', 'RFScore-VS', 'RFScore-4']:
                         method = name_map[method]
                 else:
-                    method = contents[3].replace('_', ' ') + modifier
+                    method = contents[4].replace('_', ' ') + modifier
                 if target not in targets:
                     targets.append(target)
                     noskill[target] = [0,0]
