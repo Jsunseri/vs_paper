@@ -45,35 +45,37 @@ paper_palettes['Overlap Mult'] = sns.color_palette()[2]
 paper_palettes['Overlap Sum'] = sns.color_palette()[4]
 paper_palettes['Vinardo'] = '#BDC3C7'
 paper_palettes['dense-CNNscore-mean'] = '#82E0AA'
+paper_palettes['Dense\n(Pose)'] = '#82E0AA'
 paper_palettes['dense-CNNaffinity-mean'] = '#28B463'
+paper_palettes['Dense\n(Affinity)'] = '#28B463'
 paper_palettes['dense-aff-mean'] = '#28B463'
-paper_palettes['dense'] = '#28B463'
 paper_palettes['dense_consensus'] = '#cdf2dd'
-paper_palettes['dense consensus'] = '#cdf2dd'
+paper_palettes['Dense\n(Consensus)'] = '#cdf2dd'
 paper_palettes['crossdock_default2018-CNNscore-mean'] = '#E59866'
+paper_palettes['Cross-Docked\n(Pose)'] = '#E59866'
 paper_palettes['crossdock_default2018-CNNaffinity-mean'] = '#BA4A00'
-paper_palettes['crossdock default2018-CNNaffinity-mean'] = '#BA4A00'
 paper_palettes['crossdocked2018-CNNaffinity-mean'] = '#BA4A00'
-paper_palettes['crossdocked'] = '#BA4A00'
-paper_palettes['crossdock default2018 consensus'] = '#f0c4a7'
+paper_palettes['Cross-Docked\n(Affinity)'] = '#BA4A00'
 paper_palettes['crossdock_default2018_consensus'] = '#f0c4a7'
-paper_palettes['general_default2018-CNNscore-mean'] = '#D7BDE2'
+paper_palettes['Cross-Docked\n(Consensus)'] = '#f0c4a7'
+paper_palettes['general_default2018-CNNscore-mean'] = '#b788cb'
+paper_palettes['General\n(Pose)'] = '#b788cb'
 paper_palettes['general_default2018-CNNaffinity-mean'] = '#9B59B6'
-paper_palettes['general'] = '#9B59B6'
-paper_palettes['general default2018-CNNaffinity-mean'] = '#9B59B6'
+paper_palettes['General\n(Affinity)'] = '#9B59B6'
 paper_palettes['generalset2018-CNNaffinity-mean'] = '#9B59B6'
 paper_palettes['general_default2018_consensus'] = '#e1d2e9'
-paper_palettes['general default2018 consensus'] = '#e1d2e9'
+paper_palettes['General\n(Consensus)'] = '#e1d2e9'
 paper_palettes['rf-score-vs'] = '#D98880'
 paper_palettes['rf-score-4'] = '#A93226'
 paper_palettes['Dense (Pose)'] = '#82E0AA'
 paper_palettes['Dense (Affinity)'] = '#28B463'
-paper_palettes['Cross-Docked Set (Pose)'] = '#E59866'
-paper_palettes['Cross-Docked Set (Affinity)'] = '#BA4A00'
-paper_palettes['General Set (Pose)'] = '#D7BDE2'
-paper_palettes['General Set (Affinity)'] = '#9B59B6'
+paper_palettes['Cross-Docked\n(Pose)'] = '#E59866'
+paper_palettes['Cross-Docked\n(Affinity)'] = '#BA4A00'
+paper_palettes['General (Pose)'] = '#b788cb'
+paper_palettes['General (Affinity)'] = '#9B59B6'
 paper_palettes['RFScore-VS'] = '#5DADE2'
 paper_palettes['RFScore-4'] = '#2874A6'
+
 scorecolors = {'inactive': sns.color_palette()[3], 'active': sns.color_palette()[2]}
 
 def make_plot(df, cols, figname):
@@ -127,6 +129,8 @@ for d in newmethods:
         df[mname] = df[snames].mean(axis=1)
         methods.append(mname)
 
+# make df of preds per target/compound pair
+# make df of gap per target/compound pair
 for method in methods:
     # make tmp dataframe for each method
     tmpdf = df[shared + [method]]
@@ -134,13 +138,66 @@ for method in methods:
     sortdf = tmpdf.sort_values(method, ascending=True)
     # groupby Title and Target,
     # compute diff between score between top and bottom rank
-    newdf = sortdf.groupby(shared)[method].agg(np.ptp).reset_index()
-    # newdf['Method'] = method
-    # newdf.rename(columns={method: 'Diff'}, inplace=True)
-    # concat to new dataframe which is Target Title label Diff Method 
+    thisgap_df = sortdf.groupby(shared)[method].agg(np.ptp).reset_index()
+    # merge into new dataframe which is Target Title label Diff Method 
     try:
-        final_df = pd.merge(final_df, newdf[shared + [method]], on=shared)
+        gap_df = pd.merge(gap_df, thisgap_df[shared + [method]], on=shared)
     except NameError:
-        final_df = newdf[shared + [method]]
+        gap_df = thisgap_df[shared + [method]]
 
-make_plot(final_df, methods, 'pose_scoregap_correlation.png')
+    # now make df of preds
+    thispred_df = tmpdf.loc[tmpdf.groupby(shared, as_index=False)[method].idxmax()]
+    thispred_df = thispred_df.melt(id_vars=shared, var_name="Method",
+            value_vars=[method], value_name="Prediction")
+    try:
+        # pred_df = pd.merge(pred_df, thispred_df, on=shared)
+        pred_df = pd.concat([pred_df, thispred_df], ignore_index=True,
+                sort=False)
+    except NameError:
+        pred_df = thispred_df
+
+make_plot(gap_df, methods, 'pose_scoregap_correlation.png')
+
+# gap percentage of max score, as a function of max score
+# need aggregate df that has Target Title label Diff Max Method
+scorediff_pct = r'$\frac{Score_{Range}}{Score_{Max}}$'
+gap_df = gap_df.melt(id_vars=shared, var_name="Method", value_vars=methods,
+        value_name=scorediff_pct)
+
+final_df = pred_df.merge(gap_df, on=shared + ["Method"])
+final_df[[scorediff_pct]] = final_df[[scorediff_pct]].div(final_df[['Prediction']].values, axis=0)
+
+# I want to plot this probably as a grid of kdeplots? don't really care about
+# the correlation here 
+# hardcoding for now, TODO: fix?
+grid_length = 3
+grid_width = 2 # for now
+fig,ax = plt.subplots(figsize=(16,16))
+props = dict(boxstyle='round', facecolor='white', alpha=0.8)
+sorted_methods = [
+        'Dense\n(Pose)', 'Dense\n(Affinity)', 
+        'Cross-Docked\n(Pose)', 'Cross-Docked\n(Affinity)', 
+        'General\n(Pose)', 'General\n(Affinity)'
+        ]
+for i,method in enumerate(sorted_methods):
+    plot_num = i
+    sub_ax = plt.subplot2grid((grid_length,grid_width),
+            (plot_num // grid_width, plot_num % grid_width),
+                            fig=fig)
+    subframe = final_df.loc[final_df.Method == method]
+    sns.kdeplot(subframe['Prediction'], subframe[scorediff_pct], 
+            ax = sub_ax,
+            shade=True,
+            shade_lowest=False, 
+            label = method, 
+            alpha=0.7,
+            color=paper_palettes[method])
+    r, _ = pearsonr(subframe['Prediction'].values, subframe[scorediff_pct].values)
+    sub_ax.annotate(r'$\rho = {0:.2}$'.format(r), xy=(.1, .9),
+             xycoords=sub_ax.transAxes, bbox=props)
+    if i == 0:
+        sub_ax.set_title('Pose')
+    if i == 1:
+        sub_ax.set_title('Affinity')
+
+fig.savefig('pose_scoregap_vs_pred.pdf', bbox_inches='tight')
