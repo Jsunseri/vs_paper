@@ -192,7 +192,10 @@ def generate_descriptors(mol_list, num_mols=0, data_root='', method='DUD-E'):
     '''
 
     # support reading .sdf .mol2 .pdb for now; 
-    # complain if .gninatypes - we're not using any 3D features anyway
+    # complain if .gninatypes - we're not using any 3D features anyway.
+    # if a filename is repeated on contiguous lines and that filename is
+    # multi-model, assume the lines correspond to those models and verify we
+    # get the expected number.
     count = 0
     failures = []
     assert method == 'MUV' or method == 'DUD-E', "Only MUV or DUD-E molecular "

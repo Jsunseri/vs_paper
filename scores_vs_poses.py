@@ -134,11 +134,9 @@ for d in newmethods:
 for method in methods:
     # make tmp dataframe for each method
     tmpdf = df[shared + [method]]
-    # sort by increasing score
-    sortdf = tmpdf.sort_values(method, ascending=True)
     # groupby Title and Target,
     # compute diff between score between top and bottom rank
-    thisgap_df = sortdf.groupby(shared)[method].agg(np.ptp).reset_index()
+    thisgap_df = tmpdf.groupby(shared)[method].agg(np.ptp).reset_index()
     # merge into new dataframe which is Target Title label Diff Method 
     try:
         gap_df = pd.merge(gap_df, thisgap_df[shared + [method]], on=shared)
@@ -156,7 +154,7 @@ for method in methods:
     except NameError:
         pred_df = thispred_df
 
-make_plot(gap_df, methods, 'pose_scoregap_correlation.png')
+# make_plot(gap_df, methods, 'pose_scoregap_correlation.png')
 
 # gap percentage of max score, as a function of max score
 # need aggregate df that has Target Title label Diff Max Method
@@ -185,13 +183,20 @@ for i,method in enumerate(sorted_methods):
             (plot_num // grid_width, plot_num % grid_width),
                             fig=fig)
     subframe = final_df.loc[final_df.Method == method]
-    sns.kdeplot(subframe['Prediction'], subframe[scorediff_pct], 
+    # sns.kdeplot(subframe['Prediction'], subframe[scorediff_pct], 
+            # ax = sub_ax,
+            # shade=True,
+            # shade_lowest=False, 
+            # label = method, 
+            # alpha=0.7,
+            # color=paper_palettes[method])
+    sns.scatterplot(subframe['Prediction'], subframe[scorediff_pct], 
             ax = sub_ax,
-            shade=True,
-            shade_lowest=False, 
-            label = method, 
+            hue = method, 
             alpha=0.7,
-            color=paper_palettes[method])
+            linewidth=0,
+            palette=paper_palettes
+            )
     r, _ = pearsonr(subframe['Prediction'].values, subframe[scorediff_pct].values)
     sub_ax.annotate(r'$\rho = {0:.2}$'.format(r), xy=(.1, .9),
              xycoords=sub_ax.transAxes, bbox=props)
