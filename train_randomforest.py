@@ -132,13 +132,30 @@ def generate_descriptors(mol_list, data_root='', method='DUD-E'):
     ----------
     features: array_like
         N_mols X N_features array of standardized features
+    failures: array_like
+        indices of molecules we failed to parse
     '''
 
     # support reading .sdf .mol2 .pdb for now; 
-    # complain if .gninatypes - we're not using any 3D features anyway
+    # complain if .gninatypes - we're not using any 3D features anyway.
+    # if a filename is repeated on contiguous lines and that filename is
+    # multi-model, assume the lines correspond to those models and verify we
+    # get the expected number.
     for molname in mol_list:
         base,ext = os.path.splitext(molname)
-        if ext == '.gninatypes':
+        assert ext != '.gninatypes', "Sorry, no gninatypes support currently. "
+        "Just pass the starting structure files; if you have multi-model SDFs, "
+        "repeat the filename for each example derived from that file and the "
+        "script will handle it."
+        if ext == '.gz':
+            base,ext = os.path.splitext(base)
+            assert ext == '.sdf', "Only SDFs can be gzipped for now."
+        if ext == '.pdb':
+            # handle pdb
+        elif ext == '.mol2':
+            # handle mol2
+        elif ext == '.sdf':
+            # handle sdf
 
 # use sklearn to cross validate, train, and optimize hyperparameters 
 def fit_and_cross_validate_model(X_train, y_train, fold_it):
