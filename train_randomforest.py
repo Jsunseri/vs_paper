@@ -1,10 +1,10 @@
 #!/bin/env python
-import rdkit
+import rdkit.AllChem as Chem
 import numpy as np
-import os,glob
+import sys,os,glob
 import pandas as pd
 from argparse import ArgumentParser
-from rdkit.ML.Descriptors import MoleculeDescriptors
+from rdkit import rdMolDescriptors
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import cross_val_score
 from sklearn.model_selection import GridSearchCV
@@ -115,14 +115,69 @@ def find_and_parse_folds(prefix, foldnums='', columns='Label,Affinity,Recfile,Li
     labels = df[ycols].to_numpy()
     return({'fnames':fnames, 'labels': labels, 'fold_it':fold_it})
 
+def dude_descriptors(mol):
+    '''
+    Parameters
+    ----------
+    mol: object
+        rdkit mol object
+
+    Returns
+    ----------
+    dude_descriptors: array_like
+        array of the calculated descriptors for mol. descriptors used are the
+        same as those used for construction of DUD-E. they are:
+        
+            + molecular weight
+            + number of hydrogen bond acceptors
+            + number of hydrogen bond donors
+            + number of rotatable bonds
+            + logP 
+            + net charge
+    '''
+
+def muv_descriptors(mol):
+    '''
+    Parameters
+    ----------
+    mol: object
+        rdkit mol object
+
+    Returns
+    ----------
+    muv_descriptors: array_like
+        array of the calculated descriptors for mol. descriptors used are the
+        same as those used for construction of MUV. they are:
+
+            + number of hydrogen bond acceptors
+            + number of hydrogen bond donors
+            + logP
+            + number of all atoms 
+            + number of heavy atoms 
+            + number of boron atoms 
+            + number of bromine atoms 
+            + number of carbon atoms 
+            + number of chlorine atoms 
+            + number of fluorine atoms 
+            + number of iodine atoms
+            + number of nitrogen atoms 
+            + number of oxygen atoms
+            + number of phosphorus atoms 
+            + number of sulfur atoms 
+            + number of chiral centers 
+            + number of ring systems
+    '''
+
 # we generate descriptors with rdkit and give the user the option of using the
 # DUD-E or MUV descriptors
-def generate_descriptors(mol_list, data_root='', method='DUD-E'):
+def generate_descriptors(mol_list, num_mols=0, data_root='', method='DUD-E'):
     '''
     Parameters
     ----------
     mol_list: array_like
         list of molecule filenames
+    num_mols: int
+        number of total mols expected
     data_root: str
         common path to join with molnames to generate full location
     method: {'DUD-E', 'MUV'}, optional
@@ -132,13 +187,57 @@ def generate_descriptors(mol_list, data_root='', method='DUD-E'):
     ----------
     features: array_like
         N_mols X N_features array of standardized features
+    failures: array_like
+        indices of mols we failed to parse
     '''
 
     # support reading .sdf .mol2 .pdb for now; 
     # complain if .gninatypes - we're not using any 3D features anyway
+    count = 0
+    failures = []
+    assert method == 'MUV' or method == 'DUD-E', "Only MUV or DUD-E molecular "
+    "descriptors supported"
+    n_features = 6 if method == 'DUD-E' else 17
+    features = np.zeros((num_mols, n_features))
     for molname in mol_list:
         base,ext = os.path.splitext(molname)
-        if ext == '.gninatypes':
+        assert ext != '.gninatypes', "Sorry, no gninatypes support currently. "
+        "Just pass the starting structure files; if you have multi-model SDFs, "
+        "repeat the filename for each example derived from that file and the "
+        "script will handle it."
+        if ext == '.gz':
+            base,ext = os.path.splitext(base)
+            assert ext == '.sdf', "Only SDFs can be gzipped for now."
+        if ext == '.pdb':
+            mol = Chem.MolFromPDBFile(molname)
+            mols = [mol]
+        elif ext == 'mol2':
+            mol = Chem.MolFromMol2File(molname)
+            mols = [mol]
+        elif ext == '.sdf':
+            mols = Chem.ForwardSDMolSupplier(molname)
+        elif ext == '.smi':
+            with open(molname, 'r') as f:
+                mols = [Chem.MolFromSmiles(line.strip()) for line in f]
+        for i,mol in enumerate(mols):
+            if mol is None:
+                print("Problem with molecule %d from file %s" %(i+1,molname))
+                failures.append(count)
+            else:
+                if method == 'DUD-E':
+                    desc = dude_descriptors(mol)
+                elif method == 'MUV':
+                    desc = muv_descriptors(mol)
+                else:
+                    # shouldn't get here because we already asserted above,
+                    # buuuuut just in case
+                    print("Unsupported molecular descriptor set %s" %method)
+                    sys.exit()
+            features[i,:]
+            count += 1
+
+    assert num_mols == count - len(failures), "len(labels) len(mols) mismatch; "
+    "ensure every mol has its own line in input types file. "
 
 # use sklearn to cross validate, train, and optimize hyperparameters 
 def fit_and_cross_validate_model(X_train, y_train, fold_it):
