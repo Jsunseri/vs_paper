@@ -460,36 +460,36 @@ def plot_cv_results(results, gp1, gp2, classifier=False, figname='gridsearch_res
    
     df = pd.DataFrame(results) 
     grouped = df.groupby(['param_%s' %gp1[0], 'param_%s' %gp2[0]], as_index=False)
-    for i,(param_val, color) in enumerate(zip(sorted(gp2[1]), this_palette)):
+    plot_df = df.loc[grouped['mean_test_%s' %score_suffix].idxmax()]
+    if not classifier:
+        for sample in ['train', 'test']:
+            plot_df['mean_%s_%s' %(sample, score_suffix)] = plot_df['mean_%s_%s' %(sample, score_suffix)].mul(-1)
+    for i,param_val in enumerate(gp2[1]):
+        this_plot = plot_df.loc[plot_df['param_%s' %gp2[0]] == param_val]
+        color = this_palette[i]
+        x = this_plot['param_%s' %gp1[0]].to_numpy(dtype=np.float32)
         for sample, style in (('train', '--'), ('test', '-')):
-            x = np.array(results['param_%s' %gp1[0]].data, dtype=float)
-            sample_score_mean = results['mean_%s_%s' % (sample, score_suffix)]
-            if not classifier:
-                sample_score_mean = np.negative(sample_score_mean)
-            sample_score_std = results['std_%s_%s' % (sample, score_suffix)]
-            n_samples = sample_score_mean.shape[0]
+            sample_score_mean = this_plot['mean_%s_%s' % (sample, score_suffix)].to_numpy(dtype=np.float32)
+            sample_score_std = this_plot['std_%s_%s' % (sample, score_suffix)].to_numpy(dtype=np.float32)
 
-            # for multiple values of a given param, plot the one that has max mean performance
-            sample_score_mean = np.array(sample_score_mean).reshape(n_samples/len(gp2[1]),n_samples/len(gp1[1]))
-            sample_score_std = np.array(sample_score_std).reshape(n_samples/len(gp2[1]),n_samples/len(gp1[1]))
-
-            ax.fill_between(x, sample_score_mean[i,:] - sample_score_std[i,:],
-                            sample_score_mean[i,:] + sample_score_std[i,:],
+            ax.fill_between(x, sample_score_mean - sample_score_std,
+                            sample_score_mean + sample_score_std,
                             alpha=0.1 if sample == 'test' else 0, color=color)
-            ax.plot(x, sample_score_mean[i,:], style, color=color,
+            ax.plot(x, sample_score_mean, style, color=color,
                     alpha=1 if sample == 'test' else 0.7,
                     label='%s: %s (%s)' % (gp2[0], param_val, sample))
-    
-        best_index = np.nonzero(results['rank_test_%s' % score_suffix] == 1)[0][0]
-        best_score = results['mean_test_%s' % score_suffix][best_index]
+   
+        this_best = this_plot.loc[this_plot['rank_test_%s' % score_suffix].idxmin()]
+        best_score = this_best['mean_test_%s' % score_suffix]
+        best_x = this_best['param_%s' %gp1[0]]
     
         # Plot a dotted vertical line at the best score for that scorer marked by x
-        ax.plot([x[best_index], ] * 2, [0, best_score],
+        ax.plot([best_x, ] * 2, [0, best_score],
                 linestyle='-.', color=color, marker='x', markeredgewidth=3, ms=8)
     
         # Annotate the best score for that scorer
         ax.annotate('%0.2f' % best_score,
-                    (x[best_index], best_score + 0.005))
+                    (best_x, best_score + 0.005))
     
     plt.legend(loc='best')
     plt.grid(False)
@@ -539,17 +539,11 @@ if __name__=='__main__':
         classifier = True
 
     # TODO: maybe too much?
-    # param_grid = {
-        # 'min_samples_split': [0.1, 0.25, 0.5, 1.0],
-        # 'min_samples_leaf': [0.1, 0.25, 0.5, 1],
-        # 'max_features': ['sqrt', 0.25, 0.5, 0.75, 1.0],
-        # 'n_estimators': [100, 200, 400, 750]
-    # }
     param_grid = {
-        'min_samples_split': [0.1, 1.0],
-        'min_samples_leaf': [0.1, 1],
-        'max_features': ['sqrt', 0.75],
-        'n_estimators': [200, 400]
+        'min_samples_split': [0.1, 0.25, 0.5, 1.0],
+        'min_samples_leaf': [0.1, 0.25, 0.5, 1],
+        'max_features': ['sqrt', 0.25, 0.5, 0.75, 1.0],
+        'n_estimators': [100, 200, 400, 750]
     }
     print('Fitting model')
     if len(labels.shape) == 2 and labels.shape[1] == 1:
