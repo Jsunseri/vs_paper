@@ -221,16 +221,46 @@ def get_muv_descriptors(mol):
     type_list = [atom.GetAtomicNum() for atom in mol.GetAtoms()]
     atom_counts = pd.DataFrame(type_list, columns=['type']).groupby('type').size().to_dict()
 
-    muv_descriptors.append(atom_counts[5])  # boron
-    muv_descriptors.append(atom_counts[35]) # bromine
-    muv_descriptors.append(atom_counts[6])  # carbon
-    muv_descriptors.append(atom_counts[17]) # chlorine
-    muv_descriptors.append(atom_counts[9])  # fluorine
-    muv_descriptors.append(atom_counts[53]) # iodine
-    muv_descriptors.append(atom_counts[7])  # nitrogen
-    muv_descriptors.append(atom_counts[8])  # oxygen
-    muv_descriptors.append(atom_counts[15]) # phosphorus
-    muv_descriptors.append(atom_counts[16]) # sulfur
+    if 5 in atom_counts:
+    	muv_descriptors.append(atom_counts[5])  # boron
+    else:
+    	muv_descriptors.append(0)
+    if 35 in atom_counts:
+    	muv_descriptors.append(atom_counts[35]) # bromine
+    else:
+    	muv_descriptors.append(0)
+    if 6 in atom_counts:
+    	muv_descriptors.append(atom_counts[6])  # carbon
+    else:
+    	muv_descriptors.append(0)
+    if 17 in atom_counts:
+    	muv_descriptors.append(atom_counts[17]) # chlorine
+    else:
+    	muv_descriptors.append(0)
+    if 9 in atom_counts:
+    	muv_descriptors.append(atom_counts[9])  # fluorine
+    else:
+    	muv_descriptors.append(0)
+    if 53 in atom_counts:
+    	muv_descriptors.append(atom_counts[53]) # iodine
+    else:
+    	muv_descriptors.append(0)
+    if 7 in atom_counts:
+    	muv_descriptors.append(atom_counts[7])  # nitrogen
+    else:
+    	muv_descriptors.append(0)
+    if 8 in atom_counts:
+    	muv_descriptors.append(atom_counts[8])  # oxygen
+    else:
+    	muv_descriptors.append(0)
+    if 15 in atom_counts:
+    	muv_descriptors.append(atom_counts[15]) # phosphorus
+    else:
+    	muv_descriptors.append(0)
+    if 16 in atom_counts:
+    	muv_descriptors.append(atom_counts[16]) # sulfur
+    else:
+    	muv_descriptors.append(0)
     
     # TODO: will this actually get them all?
     chiral_centers = Chem.FindMolChiralCenters(mol, includeUnassigned=True)
