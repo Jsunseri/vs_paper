@@ -1,5 +1,5 @@
 #!/bin/env python
-import sys,os,glob,gzip
+import sys,os,re,glob,gzip
 from argparse import ArgumentParser
 from collections import namedtuple
 from joblib import dump
@@ -95,18 +95,18 @@ def find_and_parse_folds(prefix, foldnums='', columns='Label,Affinity,Recfile,Li
     # present)
     column_names = [name for name in columns.split(',') if name]
     assert column_names, "Missing column names for types files."
-    assert 'Label' or 'Affinity' in column_names, "Currently a 'Label' or "
-        "'Affinity' column are required."
+    assert 'Label' or 'Affinity' in column_names, "Currently a 'Label' or 'Affinity' column are required."
     assert 'Ligfile' in column_names, "Path to ligand file required."
 
     # parse files with pandas; since we have allowed the column layout to vary,
     # we default to the "normal" version but allow the user to specify others.
-    df_list = [pd.read_csv(fname, names=column_names, delim_whitespace=True) for fname in files.values()]
+    df_list = [pd.read_csv(fname, names=column_names, delim_whitespace=True) for fname in files]
 
     # fill in list of tuples arranged like [(train0, test0), (train1, test1), ..., (trainN, testN)]
     # where the elements are arrays of indices associated with these folds
     elems_per_df = [df.shape[0] for df in df_list]
     total_examples = sum(elems_per_df)
+    print('Got %d examples from %d files' %(total_examples, len(files)))
 
     def get_indices(numlist, idx):
         '''
@@ -118,9 +118,9 @@ def find_and_parse_folds(prefix, foldnums='', columns='Label,Affinity,Recfile,Li
         for i,num in enumerate(numlist):
             start = 0 if i==0 else numlist[i-1]
             if i != idx:
-                train += range(start, start+num)
+                train += list(range(start, start+num))
             else:
-                test = range(start, start+num)
+                test = list(range(start, start+num))
         return (train,test)
 
     fold_it = [get_indices(elems_per_df, idx) for idx in range(len(elems_per_df))]
@@ -130,19 +130,20 @@ def find_and_parse_folds(prefix, foldnums='', columns='Label,Affinity,Recfile,Li
     fnames = df['Ligfile'].to_numpy()
 
     # get y_values
+    allcols = df.columns
     ycols = []
     if fit_all:
-    	for col in df.columns:
+    	for col in allcols:
     	    if is_numeric_dtype(df[col]):
     	        ycols.append(col)
     else:
-        if 'Affinity' in ycols:
+        if 'Affinity' in allcols:
             ycols = ['Affinity']
-        elif 'Label' in ycols:
+        elif 'Label' in allcols:
             ycols = ['Label']
         else:
-            assert 0, "Custom fit targets not implemented yet. Pass --fit_all '
-            'or specify target column as 'Affinity'"
+            assert 0, 'Custom fit targets not implemented yet. Pass --fit_all '
+            'or specify target column as "Affinity"'
     labels = df[ycols].to_numpy()
     return FoldData(fnames, labels, fold_it)
 
@@ -292,7 +293,7 @@ def generate_descriptors(mol_list, data_root='', method='DUD-E'):
         if ext == '.pdb':
             mol = Chem.MolFromPDBFile(fullname)
             mols = [mol]
-        elif ext == 'mol2':
+        elif ext == '.mol2':
             mol = Chem.MolFromMol2File(fullname)
             mols = [mol]
         elif ext == '.sdf':
@@ -300,12 +301,15 @@ def generate_descriptors(mol_list, data_root='', method='DUD-E'):
             	mols = Chem.ForwardSDMolSupplier(gzip.open(fullname))
             else:
             	mols = Chem.ForwardSDMolSupplier(fullname)
-        elif ext == '.smi':
+        # dkoes sometimes typos "ism" for "smi" in filenames...
+        elif ext == '.smi' or ext == '.ism':
             with open(fullname, 'r') as f:
                 mols = [Chem.MolFromSmiles(line.split()[0]) for line in f]
+        else:
+            assert 0, 'Unrecognized molecular extension %s' %ext
         for i,mol in enumerate(mols):
             if mol is None:
-                print("Problem with molecule %d from file %s" %(i+1,molname))
+                print('Problem with molecule %d from file %s' %(i+1,molname))
                 failures.append(count)
             else:
                 if method == 'DUD-E':
@@ -315,12 +319,14 @@ def generate_descriptors(mol_list, data_root='', method='DUD-E'):
                 else:
                     # shouldn't get here because we already asserted above,
                     # buuuuut just in case
-                    print("Unsupported molecular descriptor set %s" %method)
+                    print('Unsupported molecular descriptor set %s' %method)
                     sys.exit()
             count += 1
-        assert i == expected_mols_per_file[molname], "Got %d mols from %s but expected %d" %(i,molname, expected_mols_per_file[molname])
+        assert i+1 == expected_mols_per_file[molname], "Got %d mols from %s but expected %d" %(i+1,molname, expected_mols_per_file[molname])
 
     assert count == len(mol_list), "Saw %d mols but expected %d" %(count, len(mol_list))
+    
+    print('%d mols successfully parsed, %d failures' %(len(features), len(failures)))
     features = np.asarray(features)
     return FeaturizeOutput(features, failures)
 
@@ -342,6 +348,7 @@ def delete_failure_indices_from_folds(failures, labels, fold_it):
     fold_it: iterable
         iterable with failures removed
     '''
+
     # delete labels associated with any mols we failed to parse
     labels = np.delete(labels, failures, axis=0)
  
@@ -411,13 +418,15 @@ def fit_and_cross_validate_model(X_train, y_train, fold_it, param_grid, seed=42,
     '''
 
     if classifier:
-        rf = RandomForestClassifier(random_state=seed, return_train_score=True)
+        rf = RandomForestClassifier(random_state=seed)
+        scorer = 'roc_auc'
     else:
-        rf = RandomForestRegressor(random_state=seed, return_train_score=True)
+        rf = RandomForestRegressor(random_state=seed)
+        scorer = 'neg_mean_squared_error'
 
-   grf = GridSearchCV(rf, param_grid, cv=fold_it, scoring='neg_mean_squared_error')
-   grf.fit(X_train, y_train)
-   return grf
+    grf = GridSearchCV(rf, param_grid, cv=fold_it, scoring=scorer, return_train_score=True)
+    grf.fit(X_train, y_train)
+    return grf
 
 def plot_cv_results(results, gp1, gp2, classifier=False, figname='gridsearch_results.pdf'):
     '''
@@ -437,27 +446,32 @@ def plot_cv_results(results, gp1, gp2, classifier=False, figname='gridsearch_res
     fig,ax = plt.subplots(figsize=(13, 13))
     plt.title("GridSearchCV Results", fontsize=16)
    
+    score_suffix = 'score'  #TODO: this changes for multi-score evaluation
     if classifier:
-        plot.ylabel('Score')
-        score_suffix = 'score'
+        plt.ylabel('Score')
     else:
-        plot.ylabel('MSE') 
-        score_suffix = 'neg_mean_squared_error'
+        plt.ylabel('MSE') 
 
     plt.xlabel(gp1[0])
     
-    x = np.array(results['param_%s' %gp1[0]].data, dtype=float)
     palette = ['g', 'k', 'goldenrod', 'deepskyblue', 'darkorchid', 'deeppink', 'sienna']
     assert len(gp2[1]) < len(palette), 'Not enough distinct colors in palette'
     this_palette = palette[:len(gp2[1])]
-    
+   
+    df = pd.DataFrame(results) 
+    grouped = df.groupby(['param_%s' %gp1[0], 'param_%s' %gp2[0]], as_index=False)
     for i,(param_val, color) in enumerate(zip(sorted(gp2[1]), this_palette)):
         for sample, style in (('train', '--'), ('test', '-')):
+            x = np.array(results['param_%s' %gp1[0]].data, dtype=float)
             sample_score_mean = results['mean_%s_%s' % (sample, score_suffix)]
+            if not classifier:
+                sample_score_mean = np.negative(sample_score_mean)
             sample_score_std = results['std_%s_%s' % (sample, score_suffix)]
+            n_samples = sample_score_mean.shape[0]
 
-            sample_score_mean = np.array(sample_score_mean).reshape(len(grid_param_2),len(grid_param_1))
-            sample_score_std = np.array(sample_score_std).reshape(len(grid_param_2),len(grid_param_1))
+            # for multiple values of a given param, plot the one that has max mean performance
+            sample_score_mean = np.array(sample_score_mean).reshape(n_samples/len(gp2[1]),n_samples/len(gp1[1]))
+            sample_score_std = np.array(sample_score_std).reshape(n_samples/len(gp2[1]),n_samples/len(gp1[1]))
 
             ax.fill_between(x, sample_score_mean[i,:] - sample_score_std[i,:],
                             sample_score_mean[i,:] + sample_score_std[i,:],
@@ -488,7 +502,7 @@ if __name__=='__main__':
             help="Prefix for training/test files: <prefix>[train|test][num].types")
     parser.add_argument('-n', '--foldnums', type=str, required=False, default=None, 
             help="Fold numbers to run, default is to determine using glob")
-    parser.add_argument('-c', '--columns', type=str, default='Label,Affinity,Recfile,Ligfile'
+    parser.add_argument('-c', '--columns', type=str, default='Label,Affinity,Recfile,Ligfile',
             help='Comma-separated list of column identifiers for folds files, '
             'default is "Label,Affinity,Recfile,Ligfile"')
     parser.add_argument('-r', '--data_root', type=str, default='', 
@@ -506,9 +520,11 @@ if __name__=='__main__':
     args= parser.parse_args()
 
     fold_data = find_and_parse_folds(args.prefix, args.foldnums, args.columns, args.fit_all)
+    print('Generating descriptors...')
     featurize_output = generate_descriptors(fold_data.fnames, args.data_root, args.method)
    
-    if failures: 
+    if featurize_output.failures: 
+        print('Removing failed examples')
         out = delete_failure_indices_from_folds(featurize_output.failures, fold_data.labels, fold_data.fold_it)
         labels = out.labels
         fold_it = out.fold_it
@@ -523,20 +539,38 @@ if __name__=='__main__':
         classifier = True
 
     # TODO: maybe too much?
+    # param_grid = {
+        # 'min_samples_split': [0.1, 0.25, 0.5, 1.0],
+        # 'min_samples_leaf': [0.1, 0.25, 0.5, 1],
+        # 'max_features': ['sqrt', 0.25, 0.5, 0.75, 1.0],
+        # 'n_estimators': [100, 200, 400, 750]
+    # }
     param_grid = {
-        'min_samples_split': [0.1, 0.25, 0.5, 1.0],
-        'min_samples_leaf': [0.1, 0.25, 0.5, 1.0],
-        'max_features': ['sqrt', 0.25, 0.5, 0.75, 1.0],
-        'n_estimators': [100, 200, 400, 750]
+        'min_samples_split': [0.1, 1.0],
+        'min_samples_leaf': [0.1, 1],
+        'max_features': ['sqrt', 0.75],
+        'n_estimators': [200, 400]
     }
+    print('Fitting model')
+    if len(labels.shape) == 2 and labels.shape[1] == 1:
+        labels = labels.ravel()
     rf = fit_and_cross_validate_model(featurize_output.features, labels, fold_it, param_grid, args.seed, classifier)
+    print("best parameters: {}".format(rf.best_params_))
+    if not classifier:
+        score = -rf.best_score_
+    else:
+        score = rf.best_score_
+    rf_stdev = rf.cv_results_['std_test_score'][rf.best_index_]
+    print("best score: {:0.5f} (+/-{:0.5f})".format(score, rf_stdev))
 
     if not args.outprefix:
         args.outprefix = '%s_RF_%d' %(args.method, os.getpid())
+    print('Dumping best model for later')
     dump(rf.best_estimator_, '%s.joblib' %args.outprefix)
 
     params = list(param_grid.keys())
     gp1 = params[0]
+    print('Plotting hyperparameter search results')
     for gp2 in params[1:]:
         plot_cv_results(rf.cv_results_, (gp1,param_grid[gp1]), (gp2,param_grid[gp2]), classifier, 
-                        '%s_%s_gridsearch_results.pdf' %(gp1,gp2))
+                        '%s_%s_%s_gridsearch_results.pdf' %(args.outprefix,gp1,gp2))
