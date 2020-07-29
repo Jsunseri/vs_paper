@@ -7,6 +7,7 @@ from joblib import dump
 import numpy as np
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 
 from sklearn.ensemble import RandomForestClassifier
@@ -18,6 +19,8 @@ from rdkit import Chem
 from rdkit.Chem import QED
 from rdkit.Chem import rdmolops
 from rdkit.Chem import rdMolDescriptors
+
+import settings
 
 FoldData = namedtuple('FoldData', ['fnames', 'labels', 'fold_it'])
 FeaturizeOutput = namedtuple('FeaturizeOutput', ['features', 'failures'])
@@ -106,7 +109,7 @@ def find_and_parse_folds(prefix, foldnums='', columns='Label,Affinity,Recfile,Li
     # where the elements are arrays of indices associated with these folds
     elems_per_df = [df.shape[0] for df in df_list]
     total_examples = sum(elems_per_df)
-    print('Got %d examples from %d files' %(total_examples, len(files)))
+    print('Got %d examples from %d files\n' %(total_examples, len(files)))
 
     def get_indices(numlist, idx):
         '''
@@ -296,7 +299,8 @@ def generate_descriptors(mol_list, data_root='', method='DUD-E'):
     # multi-model, assume the lines correspond to those models and verify we
     # get the expected number.
     # TODO? currently not enforcing contiguity of examples from the same file, 
-    # which could lead to a mismatch between the labels and features
+    # which could lead to a mismatch between the labels and features if the 
+    # user doesn't respect the convention
     failures = []
     features = []
     count = 0 # track total number of mols seen and compare with expected
@@ -339,7 +343,7 @@ def generate_descriptors(mol_list, data_root='', method='DUD-E'):
             assert 0, 'Unrecognized molecular extension %s' %ext
         for i,mol in enumerate(mols):
             if mol is None:
-                print('Problem with molecule %d from file %s' %(i+1,molname))
+                print('Problem with molecule %d from file %s\n' %(i+1,molname))
                 failures.append(count)
             else:
                 if method == 'DUD-E':
@@ -349,14 +353,14 @@ def generate_descriptors(mol_list, data_root='', method='DUD-E'):
                 else:
                     # shouldn't get here because we already asserted above,
                     # buuuuut just in case
-                    print('Unsupported molecular descriptor set %s' %method)
+                    print('Unsupported molecular descriptor set %s\n' %method)
                     sys.exit()
             count += 1
         assert i+1 == expected_mols_per_file[molname], "Got %d mols from %s but expected %d" %(i+1,molname, expected_mols_per_file[molname])
 
     assert count == len(mol_list), "Saw %d mols but expected %d" %(count, len(mol_list))
     
-    print('%d mols successfully parsed, %d failures' %(len(features), len(failures)))
+    print('%d mols successfully parsed, %d failures\n' %(len(features), len(failures)))
     features = np.asarray(features)
     return FeaturizeOutput(features, failures)
 
@@ -450,11 +454,13 @@ def fit_and_cross_validate_model(X_train, y_train, fold_it, param_grid, seed=42,
     if classifier:
         rf = RandomForestClassifier(random_state=seed)
         scorer = 'roc_auc'
+        refit = True
     else:
         rf = RandomForestRegressor(random_state=seed)
-        scorer = 'neg_mean_squared_error'
+        scorer = ['r2', 'neg_mean_squared_error']
+        refit = 'r2'
 
-    grf = GridSearchCV(rf, param_grid, cv=fold_it, scoring=scorer, return_train_score=True)
+    grf = GridSearchCV(rf, param_grid, cv=fold_it, scoring=scorer, return_train_score=True, refit=refit)
     grf.fit(X_train, y_train)
     return grf
 
@@ -473,30 +479,34 @@ def plot_cv_results(results, gp1, gp2, classifier=False, figname='gridsearch_res
         name for output figure
     '''
 
+    mpl.rc('text', usetex=True)
     fig,ax = plt.subplots(figsize=(13, 13))
     plt.title("GridSearchCV Results", fontsize=16)
    
-    score_suffix = 'score'  #TODO: this changes for multi-score evaluation
     if classifier:
         plt.ylabel('Score')
+        score_suffix = 'score'
     else:
-        plt.ylabel('MSE') 
+        plt.ylabel(r'$R^{2}$') 
+        score_suffix = 'r2'
 
-    plt.xlabel(gp1[0])
-    
+    plt.xlabel(gp1[0].replace('_', '\_'))
+   
     palette = ['g', 'k', 'goldenrod', 'deepskyblue', 'darkorchid', 'deeppink', 'sienna']
-    assert len(gp2[1]) < len(palette), 'Not enough distinct colors in palette'
-    this_palette = palette[:len(gp2[1])]
+    ncolors = len(gp2[1])
+    if ncolors > len(palette):
+        cmap = matplotlib.cm.get_cmap('Set3')
+        palette = [cmap[val] for val in np.linspace(0, 1, ncolors)]
    
     df = pd.DataFrame(results) 
     grouped = df.groupby(['param_%s' %gp1[0], 'param_%s' %gp2[0]], as_index=False)
     plot_df = df.loc[grouped['mean_test_%s' %score_suffix].idxmax()]
-    if not classifier:
+    if not classifier and score_suffix == 'score' or score_suffix == 'neg_mean_squared_error':
         for sample in ['train', 'test']:
             plot_df['mean_%s_%s' %(sample, score_suffix)] = plot_df['mean_%s_%s' %(sample, score_suffix)].mul(-1)
     for i,param_val in enumerate(gp2[1]):
         this_plot = plot_df.loc[plot_df['param_%s' %gp2[0]] == param_val]
-        color = this_palette[i]
+        color = palette[i]
         x = this_plot['param_%s' %gp1[0]].to_numpy(dtype=np.float32)
         for sample, style in (('train', '--'), ('test', '-')):
             sample_score_mean = this_plot['mean_%s_%s' % (sample, score_suffix)].to_numpy(dtype=np.float32)
@@ -507,7 +517,7 @@ def plot_cv_results(results, gp1, gp2, classifier=False, figname='gridsearch_res
                             alpha=0.1 if sample == 'test' else 0, color=color)
             ax.plot(x, sample_score_mean, style, color=color,
                     alpha=1 if sample == 'test' else 0.7,
-                    label='%s: %s (%s)' % (gp2[0], param_val, sample))
+                    label='%s: %s (%s)' % (gp2[0].replace('_','\_'), param_val, sample))
    
         this_best = this_plot.loc[this_plot['rank_test_%s' % score_suffix].idxmin()]
         best_score = this_best['mean_test_%s' % score_suffix]
@@ -520,7 +530,9 @@ def plot_cv_results(results, gp1, gp2, classifier=False, figname='gridsearch_res
         # Annotate the best score for that scorer
         ax.annotate('%0.2f' % best_score,
                     (best_x, best_score + 0.005))
-    
+   
+    ylims = ax.get_ylim() 
+    ax.set_ylim(0, ylims[1])
     plt.legend(loc='best')
     plt.grid(False)
     fig.savefig(figname, bbox_inches='tight')
@@ -550,11 +562,11 @@ if __name__=='__main__':
     args= parser.parse_args()
 
     fold_data = find_and_parse_folds(args.prefix, args.foldnums, args.columns, args.fit_all)
-    print('Generating descriptors...')
+    print('Generating descriptors...\n')
     featurize_output = generate_descriptors(fold_data.fnames, args.data_root, args.method)
    
     if featurize_output.failures: 
-        print('Removing failed examples')
+        print('Removing failed examples\n')
         out = delete_failure_indices_from_folds(featurize_output.failures, fold_data.labels, fold_data.fold_it)
         labels = out.labels
         fold_it = out.fold_it
@@ -575,26 +587,32 @@ if __name__=='__main__':
         'max_features': ['sqrt', 0.25, 0.5, 0.75, 1.0],
         'n_estimators': [100, 200, 400, 750]
     }
-    print('Fitting model')
+    print('Fitting model\n')
     if len(labels.shape) == 2 and labels.shape[1] == 1:
         labels = labels.ravel()
     rf = fit_and_cross_validate_model(featurize_output.features, labels, fold_it, param_grid, args.seed, classifier)
     print("best parameters: {}".format(rf.best_params_))
     if not classifier:
-        score = -rf.best_score_
+        r2 = rf.cv_results_['mean_test_r2'][rf.best_index_]
+        r2_stdev = rf.cv_results_['std_test_r2'][rf.best_index_]
+        print("best R2: {:0.5f} (+/-{:0.5f})".format(r2, r2_stdev))
+        score = -rf.cv_results_['mean_test_neg_mean_squared_error'][rf.best_index_]
+        rf_stdev = rf.cv_results_['std_test_neg_mean_squared_error'][rf.best_index_]
+        scoretype = 'MSE'
     else:
         score = rf.best_score_
-    rf_stdev = rf.cv_results_['std_test_score'][rf.best_index_]
-    print("best score: {:0.5f} (+/-{:0.5f})".format(score, rf_stdev))
+        rf_stdev = rf.cv_results_['std_test_score'][rf.best_index_]
+        scoretype = 'score'
+    print("best {}: {:0.5f} (+/-{:0.5f})".format(scoretype, score, rf_stdev))
 
     if not args.outprefix:
         args.outprefix = '%s_RF_%d' %(args.method, os.getpid())
-    print('Dumping best model for later')
+    print('Dumping best model for later\n')
     dump(rf.best_estimator_, '%s.joblib' %args.outprefix)
 
     params = list(param_grid.keys())
     gp1 = params[0]
-    print('Plotting hyperparameter search results')
+    print('Plotting hyperparameter search results\n')
     for gp2 in params[1:]:
         plot_cv_results(rf.cv_results_, (gp1,param_grid[gp1]), (gp2,param_grid[gp2]), classifier, 
                         '%s_%s_%s_gridsearch_results.pdf' %(args.outprefix,gp1,gp2))

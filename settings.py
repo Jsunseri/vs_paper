@@ -1,3 +1,5 @@
+import os
+import matplotlib.pyplot as plt
 
 paper_palettes = {}
 paper_palettes['Vina'] = '#000000' #the original CNN paper used ccbb44
@@ -62,3 +64,7 @@ name_map = {'dense-CNNscore-mean': 'Dense\n(Pose)', 'dense-CNNaffinity-mean': 'D
 
 swarm_markers = [r'$\clubsuit$', r'$\spadesuit$', '^', '>', '*',
         's', 'o', '<', 'X', 'v', 'h', r'$\P$', '+', '1', '2', '3', '4', 'x']
+
+dirname = os.path.dirname(os.path.realpath(__file__))
+sheetname = 'vspaper.mpltstyle'
+plt.style.use(os.path.join(dirname, sheetname))

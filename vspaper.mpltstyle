@@ -15,8 +15,8 @@ axes.axisbelow: True
 image.cmap: Greys
 # I want Computer Modern fonts, hopefully without actually calling out to Latex
 # for figure label generation
-font.family: cmu serif
-font.sans-serif: cm, sans-serif
+font.family: serif
+font.serif: cm
 grid.linestyle: -
 lines.solid_capstyle: round
 
@@ -39,4 +39,4 @@ xtick.labelsize: 16
 ytick.labelsize: 16
 legend.fontsize: 16
 figure.titlesize: 24
-# text.usetex: True
+# text.usetex: True # I'd like to avoid enabling this by default
