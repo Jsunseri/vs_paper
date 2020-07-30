@@ -156,14 +156,14 @@ for method in methods:
 
 # make_plot(gap_df, methods, 'pose_scoregap_correlation.png')
 
-# gap percentage of max score, as a function of max score
+# gap between max and min score, as a function of max score
 # need aggregate df that has Target Title label Diff Max Method
-scorediff_pct = r'$\frac{Score_{Range}}{Score_{Max}}$'
+scorediff_pct = r'$Score_{Max} - Score_{Min}$'
 gap_df = gap_df.melt(id_vars=shared, var_name="Method", value_vars=methods,
         value_name=scorediff_pct)
 
 final_df = pred_df.merge(gap_df, on=shared + ["Method"])
-final_df[[scorediff_pct]] = final_df[[scorediff_pct]].div(final_df[['Prediction']].values, axis=0)
+# final_df[[scorediff_pct]] = final_df[[scorediff_pct]].div(final_df[['Prediction']].values, axis=0)
 
 # I want to plot this probably as a grid of kdeplots? don't really care about
 # the correlation here 
@@ -183,20 +183,20 @@ for i,method in enumerate(sorted_methods):
             (plot_num // grid_width, plot_num % grid_width),
                             fig=fig)
     subframe = final_df.loc[final_df.Method == method]
-    # sns.kdeplot(subframe['Prediction'], subframe[scorediff_pct], 
-            # ax = sub_ax,
-            # shade=True,
-            # shade_lowest=False, 
-            # label = method, 
-            # alpha=0.7,
-            # color=paper_palettes[method])
-    sns.scatterplot(subframe['Prediction'], subframe[scorediff_pct], 
+    sns.kdeplot(subframe['Prediction'], subframe[scorediff_pct], 
             ax = sub_ax,
-            hue = method, 
+            shade=True,
+            shade_lowest=False, 
+            label = method, 
             alpha=0.7,
-            linewidth=0,
-            palette=paper_palettes
-            )
+            color=paper_palettes[method])
+    # sns.scatterplot(subframe['Prediction'], subframe[scorediff_pct], 
+            # ax = sub_ax,
+            # hue = method, 
+            # alpha=0.7,
+            # linewidth=0,
+            # palette=paper_palettes
+            # )
     r, _ = pearsonr(subframe['Prediction'].values, subframe[scorediff_pct].values)
     sub_ax.annotate(r'$\rho = {0:.2}$'.format(r), xy=(.1, .9),
              xycoords=sub_ax.transAxes, bbox=props)

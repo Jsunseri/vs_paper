@@ -20,7 +20,7 @@ from rdkit.Chem import QED
 from rdkit.Chem import rdmolops
 from rdkit.Chem import rdMolDescriptors
 
-import settings
+import vspaper_settings
 
 FoldData = namedtuple('FoldData', ['fnames', 'labels', 'fold_it'])
 FeaturizeOutput = namedtuple('FeaturizeOutput', ['features', 'failures'])
@@ -274,14 +274,16 @@ def get_muv_descriptors(mol):
 
 # we generate descriptors with rdkit and give the user the option of using the
 # DUD-E or MUV descriptors
-def generate_descriptors(mol_list, data_root='', method='DUD-E'):
+def generate_descriptors(mol_list, data_root=[], method='DUD-E'):
     '''
     Parameters
     ----------
     mol_list: array_like
         list of molecule filenames
-    data_root: str
-        common path to join with molnames to generate full location
+    data_root: array_like
+        common path to join with molnames to generate full location, provided
+        as a list which are tried in order until file is found or the list is
+        exhausted
     method: {'DUD-E', 'MUV'}, optional
         Which set of descriptors to use; either DUD-E (the default) or MUV
 
@@ -315,7 +317,16 @@ def generate_descriptors(mol_list, data_root='', method='DUD-E'):
     for molname in unique_files:
         gzipped = False
         base,ext = os.path.splitext(molname)
-        fullname = os.path.join(data_root, molname)
+        if data_root:
+            found = False
+            for path in data_root:
+                fullname = os.path.join(path, molname)
+                if os.path.isfile(fullname):
+                    found = True
+                    break
+            assert found, '%s does not exist in any user-provided directories.' %molname
+        else:
+            fullname = molname
         assert ext != '.gninatypes', "Sorry, no gninatypes support currently. "
         "Just pass the starting structure files; if you have multi-model SDFs, "
         "repeat the filename for each example derived from that file and the "
@@ -547,9 +558,9 @@ if __name__=='__main__':
     parser.add_argument('-c', '--columns', type=str, default='Label,Affinity,Recfile,Ligfile',
             help='Comma-separated list of column identifiers for folds files, '
             'default is "Label,Affinity,Recfile,Ligfile"')
-    parser.add_argument('-r', '--data_root', type=str, default='', 
+    parser.add_argument('-r', '--data_root', nargs='*', default=[], 
             help='Common path to join with molnames to generate full location '
-            'of files')
+            'of files; can pass multiple, which will be tried in order')
     parser.add_argument('-m', '--method', type=str, default='DUD-E',
             help='Descriptor set to use; options are "DUD-E" or "MUV"')
     parser.add_argument('-s', '--seed', type=int, default=42,
@@ -559,7 +570,7 @@ if __name__=='__main__':
             'Default is to use only affinity if available, label if it is not')
     parser.add_argument('-o', '--outprefix', type=str, default='', 
             help='Output prefix for trained random forest pickle and train/test figs')
-    args= parser.parse_args()
+    args = parser.parse_args()
 
     fold_data = find_and_parse_folds(args.prefix, args.foldnums, args.columns, args.fit_all)
     print('Generating descriptors...\n')

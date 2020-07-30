@@ -468,11 +468,11 @@ use those color schemes')
                 contents = line.split()
                 target = contents[2].replace('_', ' ')
                 if args.color_scheme == 'vspaper':
-                    method = contents[4]
+                    method = contents[-1]
                     if method not in ['Vina', 'Vinardo', 'RFScore-VS', 'RFScore-4']:
                         method = name_map[method]
                 else:
-                    method = contents[4].replace('_', ' ') + modifier
+                    method = contents[-1].replace('_', ' ') + modifier
                 if target not in targets:
                     targets.append(target)
                     noskill[target] = [0,0]
