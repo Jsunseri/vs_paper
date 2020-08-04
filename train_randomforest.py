@@ -274,7 +274,7 @@ def get_muv_descriptors(mol):
 
 # we generate descriptors with rdkit and give the user the option of using the
 # DUD-E or MUV descriptors
-def generate_descriptors(mol_list, data_root=[], method='DUD-E'):
+def generate_descriptors(mol_list, data_root=[], method='DUD-E', extra_descriptors=None):
     '''
     Parameters
     ----------
@@ -286,6 +286,8 @@ def generate_descriptors(mol_list, data_root=[], method='DUD-E'):
         exhausted
     method: {'DUD-E', 'MUV'}, optional
         Which set of descriptors to use; either DUD-E (the default) or MUV
+    extra_descriptors: array_like, optional
+        N_mols X N_descs array of additional user-provided descriptors
 
     Returns
     ----------
@@ -358,9 +360,17 @@ def generate_descriptors(mol_list, data_root=[], method='DUD-E'):
                 failures.append(count)
             else:
                 if method == 'DUD-E':
-                    features.append(get_dude_descriptors(mol))
+                    if extra_descriptors:
+                        features.append(get_dude_descriptors(mol) +
+                                extra_descriptors[count,:].tolist())
+                    else:
+                        features.append(get_dude_descriptors(mol))
                 elif method == 'MUV':
-                    features.append(get_muv_descriptors(mol))
+                    if extra_descriptors:
+                        features.append(get_muv_descriptors(mol) +
+                                extra_descriptors[count,:].tolist())
+                    else:
+                        features.append(get_muv_descriptors(mol))
                 else:
                     # shouldn't get here because we already asserted above,
                     # buuuuut just in case
@@ -372,6 +382,7 @@ def generate_descriptors(mol_list, data_root=[], method='DUD-E'):
     assert count == len(mol_list), "Saw %d mols but expected %d" %(count, len(mol_list))
     
     print('%d mols successfully parsed, %d failures\n' %(len(features), len(failures)))
+
     features = np.asarray(features)
     return FeaturizeOutput(features, failures)
 
@@ -558,6 +569,8 @@ if __name__=='__main__':
     parser.add_argument('-c', '--columns', type=str, default='Label,Affinity,Recfile,Ligfile',
             help='Comma-separated list of column identifiers for folds files, '
             'default is "Label,Affinity,Recfile,Ligfile"')
+    parser.add_argument('-d', '--descriptor_file', type=str, default='',
+            help='Provide an additional file with precomputed descriptors')
     parser.add_argument('-r', '--data_root', nargs='*', default=[], 
             help='Common path to join with molnames to generate full location '
             'of files; can pass multiple, which will be tried in order')
@@ -573,8 +586,14 @@ if __name__=='__main__':
     args = parser.parse_args()
 
     fold_data = find_and_parse_folds(args.prefix, args.foldnums, args.columns, args.fit_all)
+    # include features from user-provided file of precomputed features, if available
+    if args.descriptor_file:
+        extra_df = pd.read_csv(descriptor_file, delim_whitespace=True)
+        assert extra_df.shape[0] == len(fold_data.labels), 'Extra descriptor file should have the ' 
+        'same number of examples as the folds'
+        extra_descs = extra_df.to_numpy()
     print('Generating descriptors...\n')
-    featurize_output = generate_descriptors(fold_data.fnames, args.data_root, args.method)
+    featurize_output = generate_descriptors(fold_data.fnames, args.data_root, args.method, extra_descs)
    
     if featurize_output.failures: 
         print('Removing failed examples\n')
@@ -599,6 +618,7 @@ if __name__=='__main__':
         'n_estimators': [100, 200, 400, 750]
     }
     print('Fitting model\n')
+    # TODO: reshape instead? what happens with more than one target value?
     if len(labels.shape) == 2 and labels.shape[1] == 1:
         labels = labels.ravel()
     rf = fit_and_cross_validate_model(featurize_output.features, labels, fold_it, param_grid, args.seed, classifier)

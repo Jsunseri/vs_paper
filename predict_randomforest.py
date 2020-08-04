@@ -76,7 +76,7 @@ if __name__ == '__main__':
     y_true = df['Label'].tolist()
 
     if scorecol == 'Label':
-        # do AUC...and eventually EF1% - by target!
+        # do AUC...and eventually EF1% (TODO)
         fpr,tpr,_ = roc_curve(y_true,y_pred)
         auc = roc_auc_score(y_true,y_pred)
         print('AUC: {:0.3f}'.format(auc))
