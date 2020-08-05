@@ -1,18 +1,23 @@
 #! /usr/bin/env python
-import matplotlib as mpl
-mpl.use('Agg')
 import os,sys,math
 import collections
+from argparse import ArgumentParser
 from funcsigs import signature
+
+import matplotlib as mpl
+mpl.use('Agg')
+import matplotlib.pyplot as plt
+import matplotlib.lines as mlines
+
+import numpy as np
+import pandas as pd
+import seaborn as sns
+
 from sklearn.metrics import roc_curve, roc_auc_score
 from sklearn.metrics import precision_recall_curve
 from sklearn.metrics import average_precision_score
-from argparse import ArgumentParser
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-import matplotlib.lines as mlines
+
+from vspaper_settings import paper_palettes, name_map, reverse_map, swarm_markers
 
 plt.style.use('seaborn-white')
 sns.set_palette(sns.color_palette("hls", 8))
@@ -31,6 +36,8 @@ plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
 plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
 plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
 plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
+
+backup_palette = sns.color_palette("hls", n_colors=10, desat=.5).as_hex()
 
 paper_palettes = {}
 paper_palettes['Vina'] = '#000000' #the original CNN paper used ccbb44
@@ -81,6 +88,8 @@ paper_palettes['General (Pose)'] = '#b788cb'
 paper_palettes['General (Affinity)'] = '#9B59B6'
 paper_palettes['RFScore-VS'] = '#5DADE2'
 paper_palettes['RFScore-4'] = '#2874A6'
+paper_palettes['RF DUD-E'] = backup_palette[2]
+paper_palettes['RF MUV'] = backup_palette[3]
 
 name_map = {'dense-CNNscore-mean': 'Dense\n(Pose)', 'dense-CNNaffinity-mean': 'Dense\n(Affinity)',
         'crossdocked_default2018-CNNscore-mean': 'Cross-Docked\n(Pose)', 
@@ -352,7 +361,7 @@ def mean_auc(data, methods, targets, noskill, args):
             else:
                 # ok actually for now do both if there are few targets
                 if len(targets) <= 20:
-                    symbol_fig,symbol_ax = plt.subplots()
+                    symbol_fig,symbol_ax = plt.subplots(figsize=(12.8,9.6))
                     grouped = boxplot_df.groupby(['Method'], as_index=False)
                     medians = grouped['AUC'].median()
                     medians.sort_values(by='AUC', inplace=True)
@@ -469,8 +478,10 @@ use those color schemes')
                 target = contents[2].replace('_', ' ')
                 if args.color_scheme == 'vspaper':
                     method = contents[-1]
-                    if method not in ['Vina', 'Vinardo', 'RFScore-VS', 'RFScore-4']:
+                    if method in name_map:
                         method = name_map[method]
+                    else:
+                        method = method.replace('_', ' ')
                 else:
                     method = contents[-1].replace('_', ' ') + modifier
                 if target not in targets:

@@ -146,7 +146,7 @@ def find_and_parse_folds(prefix, foldnums='',
         labels = np.delete(labels, failures)
 
         # construct dataset 
-        fold_datasets.append(deepchem.data.DiskDataset.from_numpy(features, y=labels))
+        fold_datasets.append(dc.data.DiskDataset.from_numpy(features, y=labels))
     return fold_datasets
 
 if __name__=='__main__':

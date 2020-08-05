@@ -46,6 +46,8 @@ paper_palettes['General (Pose)'] = '#b788cb'
 paper_palettes['General (Affinity)'] = '#9B59B6'
 paper_palettes['RFScore-VS'] = '#5DADE2'
 paper_palettes['RFScore-4'] = '#2874A6'
+paper_palettes['RF Refined\n(DUD-E features)'] = backup_palette[2]
+paper_palettes['RF Refined\n(MUV features)'] = backup_palette[3]
 
 name_map = {'dense-CNNscore-mean': 'Dense\n(Pose)', 'dense-CNNaffinity-mean': 'Dense\n(Affinity)',
         'crossdocked_default2018-CNNscore-mean': 'Cross-Docked\n(Pose)', 
