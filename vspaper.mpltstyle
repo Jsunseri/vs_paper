@@ -39,4 +39,4 @@ xtick.labelsize: 16
 ytick.labelsize: 16
 legend.fontsize: 16
 figure.titlesize: 24
-# text.usetex: True # I'd like to avoid enabling this by default
+text.usetex: True # TODO I'd like to avoid enabling this by default but having font cache probs

@@ -17,116 +17,8 @@ from sklearn.metrics import roc_curve, roc_auc_score
 from sklearn.metrics import precision_recall_curve
 from sklearn.metrics import average_precision_score
 
-from vspaper_settings import paper_palettes, name_map, reverse_map, swarm_markers
+from vspaper_settings import paper_palettes, name_map, reverse_map, swarm_markers, litpcba_successes
 
-plt.style.use('seaborn-white')
-sns.set_palette(sns.color_palette("hls", 8))
-mpl.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
-mpl.rc('text', usetex=True)
-
-SMALL_SIZE=20
-MEDIUM_SIZE=24
-BIGGER_SIZE=26
-SUBFIG_SIZE=28
-
-plt.rc('font', size=BIGGER_SIZE)          # controls default text sizes
-plt.rc('axes', titlesize=MEDIUM_SIZE)     # fontsize of the axes title
-plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
-plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
-plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
-plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
-plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
-
-backup_palette = sns.color_palette("hls", n_colors=10, desat=.5).as_hex()
-
-paper_palettes = {}
-paper_palettes['Vina'] = '#000000' #the original CNN paper used ccbb44
-paper_palettes['CSAR'] = '#332288'
-paper_palettes['DUD-E'] = '#4477aa'
-paper_palettes['2:1'] = '#88ccee'
-paper_palettes['CNN Affinity Rescore'] = '#6da4c0'
-paper_palettes['CNN Affinity Refine'] = '#332288'
-paper_palettes['CNN Scoring Rescore'] = '#ffd91c'
-paper_palettes['CNN Scoring Refine'] = '#877b25'
-paper_palettes['Experiment'] = '#498540'
-paper_palettes['CNN'] = '#ffd91c'
-paper_palettes['CNNscore'] = '#ffd91c'
-paper_palettes['CNNaffinity'] = '#6da4c0'
-paper_palettes['Overlap'] = sns.color_palette()[0]
-paper_palettes['Overlap L2'] = sns.color_palette()[-1]
-paper_palettes['Overlap Mult'] = sns.color_palette()[2]
-paper_palettes['Overlap Sum'] = sns.color_palette()[4]
-paper_palettes['Vinardo'] = '#BDC3C7'
-paper_palettes['dense-CNNscore-mean'] = '#82E0AA'
-paper_palettes['Dense\n(Pose)'] = '#82E0AA'
-paper_palettes['dense-CNNaffinity-mean'] = '#28B463'
-paper_palettes['Dense\n(Affinity)'] = '#28B463'
-paper_palettes['dense-aff-mean'] = '#28B463'
-paper_palettes['dense_consensus'] = '#cdf2dd'
-paper_palettes['Dense\n(Consensus)'] = '#cdf2dd'
-paper_palettes['crossdock_default2018-CNNscore-mean'] = '#E59866'
-paper_palettes['Cross-Docked\n(Pose)'] = '#E59866'
-paper_palettes['crossdock_default2018-CNNaffinity-mean'] = '#BA4A00'
-paper_palettes['crossdocked2018-CNNaffinity-mean'] = '#BA4A00'
-paper_palettes['Cross-Docked\n(Affinity)'] = '#BA4A00'
-paper_palettes['crossdock_default2018_consensus'] = '#f0c4a7'
-paper_palettes['Cross-Docked\n(Consensus)'] = '#f0c4a7'
-paper_palettes['general_default2018-CNNscore-mean'] = '#b788cb'
-paper_palettes['General\n(Pose)'] = '#b788cb'
-paper_palettes['general_default2018-CNNaffinity-mean'] = '#9B59B6'
-paper_palettes['General\n(Affinity)'] = '#9B59B6'
-paper_palettes['generalset2018-CNNaffinity-mean'] = '#9B59B6'
-paper_palettes['general_default2018_consensus'] = '#e1d2e9'
-paper_palettes['General\n(Consensus)'] = '#e1d2e9'
-paper_palettes['rf-score-vs'] = '#D98880'
-paper_palettes['rf-score-4'] = '#A93226'
-paper_palettes['Dense (Pose)'] = '#82E0AA'
-paper_palettes['Dense (Affinity)'] = '#28B463'
-paper_palettes['Cross-Docked\n(Pose)'] = '#E59866'
-paper_palettes['Cross-Docked\n(Affinity)'] = '#BA4A00'
-paper_palettes['General (Pose)'] = '#b788cb'
-paper_palettes['General (Affinity)'] = '#9B59B6'
-paper_palettes['RFScore-VS'] = '#5DADE2'
-paper_palettes['RFScore-4'] = '#2874A6'
-paper_palettes['RF DUD-E'] = backup_palette[2]
-paper_palettes['RF MUV'] = backup_palette[3]
-
-name_map = {'dense-CNNscore-mean': 'Dense\n(Pose)', 'dense-CNNaffinity-mean': 'Dense\n(Affinity)',
-        'crossdocked_default2018-CNNscore-mean': 'Cross-Docked\n(Pose)', 
-        'crossdock_default2018-CNNscore-mean': 'Cross-Docked\n(Pose)', 
-        'crossdock_default2018-CNNaffinity-mean': 'Cross-Docked\n(Affinity)', 
-        'general_default2018-CNNscore-mean': 'General\n(Pose)',
-        'general_default2018-CNNaffinity-mean': 'General\n(Affinity)', 
-        'rfscore-vs': 'RFScore-VS',
-        'rf-score-4': 'RFScore-4',
-        'dense-aff-mean': 'Dense\n(Affinity)',
-        'crossdocked2018-CNNaffinity-mean': 'Cross-Docked\n(Affinity)', 
-        'generalset2018-CNNaffinity-mean': 'General\n(Affinity)', 
-        'dense_consensus': 'Dense\n(Consensus)', 
-        'crossdock_default2018_consensus': 'Cross-Docked\n(Consensus)', 
-        'general_default2018_consensus': 'General\n(Consensus)'}
-
-reverse_map = {'Dense\n(Pose)': 'dense-CNNscore-mean',
-        'Dense\n(Affinity)': 'dense-CNNaffinity-mean', 
-        'Cross-Docked\n(Pose)': 'crossdock_default2018-CNNscore-mean', 
-        'Cross-Docked\n(Affinity)': 'crossdock_default2018-CNNaffinity-mean',
-        'General\n(Pose)': 'general_default2018-CNNscore-mean', 
-        'General\n(Affinity)': 'general_default2018-CNNaffinity-mean', 
-        'RFScore-VS': 'rfscore-vs', 
-        'RFScore-4': 'rf-score-4', 
-        'Dense\n(Consensus)': 'dense_consensus', 
-        'Cross-Docked\n(Consensus)': 'crossdock_default2018_consensus', 
-        'General\n(Consensus)': 'general_default2018_consensus'}
-
-swarm_markers = [r'$\clubsuit$', r'$\spadesuit$', '^', '>', '*',
-        's', 'o', '<', 'X', 'v', 'h', r'$\P$', '+', '1', '2', '3', '4', 'x']
-blue_star = mlines.Line2D([], [], color='black', marker='^', linestyle='None',
-                                  markersize=10, label='Blue stars')
-red_square = mlines.Line2D([], [], color='red', marker='s', linestyle='None',
-                                  markersize=10, label='Red squares')
-purple_triangle = mlines.Line2D([], [], color='purple', marker='^',
-        linestyle='None',
-                                  markersize=10, label='Purple triangles')
 # In matplotlib < 1.5, plt.fill_between does not have a 'step'
 # argument
 step_kwargs = ({'step': 'post'}
@@ -152,7 +44,7 @@ def calc_auc_and_pr(target_and_method, target_predictions):
                 (average_precision_score(y_true, y_score),
                     precision, recall)}
 
-def mean_auc(data, methods, targets, noskill, args):
+def mean_auc(data, methods, targets, noskill, sims, args):
         #use this palette if the methods don't correspond to methods used in
         #any of the old papers, which have associated colors
         backup_palette = sns.color_palette("hls", n_colors=len(methods),
@@ -199,6 +91,8 @@ def mean_auc(data, methods, targets, noskill, args):
                 if args.make_boxplot:
                     boxplot_dat.append({'Method' : t[1], 'AUC' : auc, 'Target'
                         : t[0], 'APS': aps})
+                    if sims:
+                        boxplot_dat[-1]['Similarity'] = sims[t[1]][t[0]]
                 plot_num = targets.index(t[0])
                 if t[1] not in overall_stats['AUC']:
                     overall_stats['AUC'][t[1]] = 0
@@ -315,7 +209,7 @@ def mean_auc(data, methods, targets, noskill, args):
         fig.savefig(args.outprefix+'_%s.pdf'%chosen_stat, bbox_inches='tight')
 
         #now do boxplots
-        auc_fig,auc_ax = plt.subplots(figsize=(12.8,9.6))
+        auc_fig,auc_ax = plt.subplots(figsize=(12,10))
         aps_fig,aps_ax = plt.subplots()
         if args.make_boxplot:
             if args.color_scheme:
@@ -367,6 +261,11 @@ def mean_auc(data, methods, targets, noskill, args):
                     medians.sort_values(by='AUC', inplace=True)
                     order = medians['Method'].tolist()
                     leghands = []
+                    success_info = True
+                    for target in targets:
+                        if target not in litpcba_successes:
+                            success_info = False
+                            break
                     for marker_id,target in enumerate(targets):
                         if marker_id > 11:
                             mew = 2
@@ -383,13 +282,19 @@ def mean_auc(data, methods, targets, noskill, args):
                                 alpha=0.7, 
                                 palette=palette, marker=marker,
                                 ax=symbol_ax, order=order)
-                        leghands.append(mlines.Line2D([], [], color='black',
-                            fillstyle='none', marker=marker, linestyle='None',
-                            mew=1,
-                            markersize=size, label=target))
+                        if success_info:
+                            leghands.append(mlines.Line2D([], [], color='black',
+                                fillstyle='none', marker=marker, linestyle='None',
+                                mew=1,
+                                markersize=size, label='%s (%s)' %(target,' '.join(litpcba_successes[target]))))
+                        else:
+                            leghands.append(mlines.Line2D([], [], color='black',
+                                fillstyle='none', marker=marker, linestyle='None',
+                                mew=1,
+                                markersize=size, label=target))
                     sns.boxplot(x='Method', y='AUC', data=boxplot_df,
                             color='white', ax=symbol_ax, order=order)
-                    symbol_ax.legend(handles=leghands, bbox_to_anchor=(1.4, 1.05),
+                    symbol_ax.legend(handles=leghands, bbox_to_anchor=(1.3, 1),
                             frameon=True, loc='upper right')
                     # symbol_ax.legend(handles=leghands, loc='lower right', ncol=2, 
                             # frameon=True)
@@ -407,21 +312,64 @@ def mean_auc(data, methods, targets, noskill, args):
             medians = grouped['AUC'].median()
             medians.sort_values(by='AUC', inplace=True)
             order = medians['Method'].tolist()
-            sns.swarmplot(x='Method', y='AUC',
-                    data=boxplot_df, split=True, edgecolor='black', size=7,
-                    linewidth=0, palette = palette, ax=auc_ax,
-                    alpha=0.7, order=order)
-            sns.swarmplot(x='Method', y='APS',
-                    data=boxplot_df, split=True, edgecolor='black', size=7,
-                    linewidth=0, palette = palette, ax=aps_ax)
             sns.boxplot(x='Method', y='AUC', data=boxplot_df,
                     color='white', ax=auc_ax, order=order)
             sns.boxplot(x='Method', y='APS', data=boxplot_df,
                     color='white', ax=aps_ax)
+            if sims:
+                # evidently we can't pass a list/array of arrays as y and select specific x, 
+		# so instead we're going to set any excluded methods to a dummy
+                # value and then fix the axis limits so the dummy value is cropped out
+                # the boxplot uses the real data so it's unaffected by the off-plot dummy point
+                threshold = 0.7
+                relevant = boxplot_df.loc[boxplot_df.Similarity < threshold]
+                labels = relevant['Method'].unique().tolist()
+                dummy = {}
+                dummy['Method'] = []
+                dummy['AUC'] = []
+                for mn in order:
+                    if mn not in labels:
+                        dummy['Method'].append(mn)
+                        dummy['AUC'].append(-1)
+                if dummy['Method']:
+                    relevant = relevant.append(pd.DataFrame(dummy))
+                sns.swarmplot(x='Method', y='AUC', 
+                        data=relevant, order=order, 
+                        palette = palette, 
+                        split=True, 
+                        edgecolor='black', size=7, marker='o', 
+                        linewidth=0, ax=auc_ax,
+                        alpha=0.7)
+                relevant = boxplot_df.loc[boxplot_df.Similarity > threshold]
+                labels = relevant['Method'].unique().tolist()
+                dummy = {}
+                dummy['Method'] = []
+                dummy['AUC'] = []
+                for mn in order:
+                    if mn not in labels:
+                        dummy['Method'].append(mn)
+                        dummy['AUC'].append(-1)
+                if dummy['Method']:
+                    relevant = relevant.append(pd.DataFrame(dummy))
+                sns.swarmplot(x='Method', y='AUC', 
+                        data=relevant, order=order, 
+                        palette = palette, 
+                        split=True, 
+                        edgecolor='black', size=7, marker='X', 
+                        linewidth=0, ax=auc_ax,
+                        alpha=0.7)
+            else:
+                sns.swarmplot(x='Method', y='AUC',
+                        data=boxplot_df, split=True, edgecolor='black', size=7,
+                        linewidth=0, palette = palette, ax=auc_ax,
+                        alpha=0.7, order=order)
+            sns.swarmplot(x='Method', y='APS',
+                    data=boxplot_df, split=True, edgecolor='black', size=7,
+                    linewidth=0, palette = palette, ax=aps_ax)
             #sigh
             auc_ax.set_ylabel('AUC')
             auc_ax.set_xlabel('')
-            auc_ax.set(ylim=(0,1.1))
+            auc_ax.set(ylim=(0,1.05))
             auc_xlims = auc_ax.get_xlim()
             auc_ax.plot([auc_xlims[0],auc_xlims[1]],[0.5, 0.5], linestyle='--', color='gray',
                     zorder=1, alpha=0.5)
@@ -460,6 +408,10 @@ associated with each method')
             help='Specify color scheme, options are cnn, d3r, overlap, or vspaper; if used, the \
 predictions files must have names indicating the correct methods to \
 use those color schemes')
+        parser.add_argument('-s', '--simfiles', nargs='*', default=[], help='Optionally '
+                'provide a comma-separated list of methods/files with target values to define marker '
+                'symbols based on a threshold value (originally intended to '
+                'represent similarity to training set)')
         args= parser.parse_args()
 
         data = {}
@@ -495,5 +447,31 @@ use those color schemes')
                 data[this_key].append((contents[0],contents[1]))
                 noskill[target][0] += (int(float(contents[0])) == 1)
                 noskill[target][1] += 1
-        overall_stats = mean_auc(data, methods, targets, noskill, args)
+        sims = {}
+        for sim in args.simfiles:
+            siminfo = sim.strip().split(',')
+            sim_method = siminfo[0]
+            if sim_method in name_map:
+                sim_method = name_map[sim_method]
+            simfile = siminfo[1]
+            sims[sim_method] = {}
+            # read file contents into dict
+            with open(simfile, 'r') as f:
+                for line in f:
+                    if line.startswith('#'):
+                        continue
+                    contents = line.strip().split()
+                    target = contents[0].replace('_', ' ')
+                    similarity = 1 - float(contents[-1])
+                    sims[sim_method][target] = similarity
+            for target in targets:
+                assert target in sims[sim_method], 'Target %s missing from similarity data %s' %(target, simfile)
+        if args.simfiles:
+            for method in methods:
+                if method not in sims:
+                    sims[method] = {}
+                    for target in targets:
+                        # assume there was no training data
+                        sims[method][target] = 0
+        overall_stats = mean_auc(data, methods, targets, noskill, sims, args)
         print(overall_stats)
