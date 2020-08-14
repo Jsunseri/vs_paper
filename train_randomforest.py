@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 
 from scipy.stats import pearsonr
 from sklearn.metrics import roc_curve, roc_auc_score, make_scorer
+
 from sklearn.linear_model import Lasso
 
 from sklearn.ensemble import RandomForestClassifier
@@ -145,12 +146,12 @@ def find_and_parse_folds(prefix, foldnums='', columns='Label,Affinity,Recfile,Li
         the other test folds will be concatenated to constitute the train set
         '''
         train = []
-        for i,num in enumerate(numlist):
-            start = 0 if i==0 else numlist[i-1]
+        start_indices = [part_sum for part_sum in exclusive_scan(size for size in numlist)]
+        for i,start in enumerate(start_indices[:-1]):
             if i != idx:
-                train += list(range(start, start+num))
+                train += list(range(start, start+numlist[i]))
             else:
-                test = list(range(start, start+num))
+                test = list(range(start, start+numlist[i]))
         return (train,test)
 
     if foldnums:
@@ -380,7 +381,7 @@ def generate_descriptors(mol_list, data_root=[], method='DUD-E', extra_descripto
             else:
             	mols = Chem.ForwardSDMolSupplier(fullname)
             # detour here to get the molnames with sdsorter; if we don't have
-            # SDFs or SMIs...sorry, you're on your own
+            # SDFs or SMIs...sorry, you're on your own for names
             moltitles += (sdsorter['-print', '-omit-header', fullname] | awk['{print $2}'])().strip().split('\n')
         # dkoes sometimes typos "ism" for "smi" in filenames...
         elif ext == '.smi' or ext == '.ism':
@@ -445,7 +446,7 @@ def delete_failure_indices_from_folds(failures, labels, fold_it):
     labels = np.delete(labels, failures, axis=0)
  
     # also delete them from the iterator defining the folds...
-    # that iterator is actually a bunch of lists of indices;
+    # that iterable is actually a bunch of lists of indices;
     # each index will appear in two train fold lists and one test fold, 
     # and we can figure out which
     if fold_it:
@@ -453,9 +454,10 @@ def delete_failure_indices_from_folds(failures, labels, fold_it):
         start_indices = [part_sum for part_sum in exclusive_scan(size for size in test_sizes)]
         foldnums = list(range(len(test_sizes)))
         index_groups = {}
-        for i in foldnums:
-            index_groups[i] = []
-        # first we'll partition the failed indices by test and train folds
+        failed_counts = [0]*len(foldnums)
+        # the failures were removed from X/y, so we just need to 
+        # figure out how many failures map to each fold and 
+        # slice the list to chop off the cumulative number of failures
         for failed in failures:
             fold = -1
             for i,start in enumerate(start_indices[1:]):
@@ -463,18 +465,15 @@ def delete_failure_indices_from_folds(failures, labels, fold_it):
                     fold = i
                     break
             assert fold != -1, "Failure index %d exceeds data size %d" %(failed, start_indices[-1])
-            index_groups[fold].append(failed)
+            failed_counts[fold] += 1
 
+        cumulative_failed_counts = [part_sum for part_sum in exclusive_scan(size for size in failed_counts)]
         # the fold we've noted is the test fold; concat the other folds to get the train fold
         new_test_folds = {}
-        for fold,failed in index_groups.items():
-            # delete from test
-            failed = sorted(failed, reverse=True)
-            test_failed = [x-start_indices[fold] for x in failed]
-            test = fold_it[fold][1]
-            for index in test_failed:
-                del test[index]
-            new_test_folds[fold] = test
+        for fold,failed in enumerate(cumulative_failed_counts[1:]):
+            newsize = test_sizes[fold] - failed
+            test = sorted(fold_it[fold][1])
+            new_test_folds[fold] = test[:newsize]
 
         fold_it = []
         for fold in foldnums:
@@ -603,7 +602,7 @@ def fit_all_models(X_train, y_train, fold_it=[], njobs=1, seed=42, classifier=Fa
     if not fold_it: fold_it=5
     data = {}
     data['Method'] = []
-    palette = sns.color_palette("hls", n_colors=6, desat=.5).as_hex()
+    palette = sns.color_palette("hls", n_colors=8, desat=.5).as_hex()
     methodcolors = {}
     box_fig,box_ax = plt.subplots()
     # plot grid of ROC curves for fit and boxplot of AUCs for CV
@@ -617,7 +616,7 @@ def fit_all_models(X_train, y_train, fold_it=[], njobs=1, seed=42, classifier=Fa
         plot_num = 0
         methodname = 'KNN'
         methodcolors[methodname] = palette[plot_num]
-        m = KNeighborsClassifier(n_jobs=njobs)
+        m = KNeighborsClassifier(n_jobs=njobs, random_state=seed)
         cv_results = cross_validate(m, X_train, y_train, cv=fold_it, scoring='roc_auc')
         m.fit(X_train, y_train)
         preds = m.predict_proba(X_train)[:,1]
@@ -631,7 +630,7 @@ def fit_all_models(X_train, y_train, fold_it=[], njobs=1, seed=42, classifier=Fa
         plot_num = 1
         methodname = 'SVM'
         methodcolors[methodname] = palette[plot_num]
-        m = SVC(n_jobs=njobs)
+        m = SVC(n_jobs=njobs, random_state=seed)
         cv_results = cross_validate(m, X_train, y_train, cv=fold_it, scoring='roc_auc')
         m.fit(X_train, y_train)
         preds = m.predict_proba(X_train)[:,1]
@@ -645,7 +644,7 @@ def fit_all_models(X_train, y_train, fold_it=[], njobs=1, seed=42, classifier=Fa
         plot_num = 2
         methodname = 'GBT'
         methodcolors[methodname] = palette[plot_num]
-        m = GradientBoostingClassifier(n_jobs=njobs)
+        m = GradientBoostingClassifier(n_jobs=njobs, random_state=seed)
         cv_results = cross_validate(m, X_train, y_train, cv=fold_it, scoring='roc_auc')
         m.fit(X_train, y_train)
         preds = m.predict_proba(X_train)[:,1]
@@ -659,7 +658,7 @@ def fit_all_models(X_train, y_train, fold_it=[], njobs=1, seed=42, classifier=Fa
         plot_num = 3
         methodname = 'DT'
         methodcolors[methodname] = palette[plot_num]
-        m = DecisionTreeClassifier(n_jobs=njobs)
+        m = DecisionTreeClassifier(n_jobs=njobs, random_state=seed)
         cv_results = cross_validate(m, X_train, y_train, cv=fold_it, scoring='roc_auc')
         m.fit(X_train, y_train)
         preds = m.predict_proba(X_train)[:,1]
@@ -717,6 +716,9 @@ def fit_all_models(X_train, y_train, fold_it=[], njobs=1, seed=42, classifier=Fa
             m.fit(this_xtrain, this_ytrain)
             preds += m.predict(this_xtest).tolist()
             true += y_train.take(test_indices,axis=0).tolist()
+        R = pearsonr(true, preds)[0]
+        rmse = np.sqrt(np.mean(np.square(true - preds)))
+        print('%s R=%0.3f, RMSE=%0.3f' %(methodname, R, rmse))
         plot_regressor(true, preds, methodname, palette[plot_num])
         vals = cv_results['test_score']
         for val in vals:
@@ -726,7 +728,7 @@ def fit_all_models(X_train, y_train, fold_it=[], njobs=1, seed=42, classifier=Fa
         plot_num = 1
         methodname = 'KNN'
         methodcolors[methodname] = palette[plot_num]
-        m = KNeighborsRegressor()
+        m = KNeighborsRegressor(n_jobs=njobs)
         cv_results = cross_validate(m, X_train, y_train, cv=fold_it,
                 scoring=pearsonscore)
         preds = []
@@ -738,6 +740,9 @@ def fit_all_models(X_train, y_train, fold_it=[], njobs=1, seed=42, classifier=Fa
             m.fit(this_xtrain, this_ytrain)
             preds += m.predict(this_xtest).tolist()
             true += y_train.take(test_indices,axis=0).tolist()
+        R = pearsonr(true, preds)[0]
+        rmse = np.sqrt(np.mean(np.square(true - preds)))
+        print('%s R=%0.3f, RMSE=%0.3f' %(methodname, R, rmse))
         plot_regressor(true, preds, methodname, palette[plot_num])
         vals = cv_results['test_score']
         for val in vals:
@@ -759,6 +764,9 @@ def fit_all_models(X_train, y_train, fold_it=[], njobs=1, seed=42, classifier=Fa
             m.fit(this_xtrain, this_ytrain)
             preds += m.predict(this_xtest).tolist()
             true += y_train.take(test_indices,axis=0).tolist()
+        R = pearsonr(true, preds)[0]
+        rmse = np.sqrt(np.mean(np.square(true - preds)))
+        print('%s R=%0.3f, RMSE=%0.3f' %(methodname, R, rmse))
         plot_regressor(true, preds, methodname, palette[plot_num])
         vals = cv_results['test_score']
         for val in vals:
@@ -768,7 +776,7 @@ def fit_all_models(X_train, y_train, fold_it=[], njobs=1, seed=42, classifier=Fa
         plot_num = 3
         methodname = 'GBT'
         methodcolors[methodname] = palette[plot_num]
-        m = GradientBoostingRegressor()
+        m = GradientBoostingRegressor(random_state=seed)
         cv_results = cross_validate(m, X_train, y_train, cv=fold_it,
                 scoring=pearsonscore)
         preds = []
@@ -780,7 +788,10 @@ def fit_all_models(X_train, y_train, fold_it=[], njobs=1, seed=42, classifier=Fa
             m.fit(this_xtrain, this_ytrain)
             preds += m.predict(this_xtest).tolist()
             true += y_train.take(test_indices,axis=0).tolist()
-        plot_regressor(y_train, preds, methodname, palette[plot_num])
+        R = pearsonr(true, preds)[0]
+        rmse = np.sqrt(np.mean(np.square(true - preds)))
+        print('%s R=%0.3f, RMSE=%0.3f' %(methodname, R, rmse))
+        plot_regressor(true, preds, methodname, palette[plot_num])
         vals = cv_results['test_score']
         for val in vals:
             data['Method'].append(methodname)
@@ -789,7 +800,7 @@ def fit_all_models(X_train, y_train, fold_it=[], njobs=1, seed=42, classifier=Fa
         plot_num = 4
         methodname = 'DT'
         methodcolors[methodname] = palette[plot_num]
-        m = DecisionTreeRegressor()
+        m = DecisionTreeRegressor(random_state=seed)
         cv_results = cross_validate(m, X_train, y_train, cv=fold_it,
                 scoring=pearsonscore)
         preds = []
@@ -801,6 +812,9 @@ def fit_all_models(X_train, y_train, fold_it=[], njobs=1, seed=42, classifier=Fa
             m.fit(this_xtrain, this_ytrain)
             preds += m.predict(this_xtest).tolist()
             true += y_train.take(test_indices,axis=0).tolist()
+        R = pearsonr(true, preds)[0]
+        rmse = np.sqrt(np.mean(np.square(true - preds)))
+        print('%s R=%0.3f, RMSE=%0.3f' %(methodname, R, rmse))
         plot_regressor(true, preds, methodname, palette[plot_num])
         vals = cv_results['test_score']
         for val in vals:
@@ -822,11 +836,42 @@ def fit_all_models(X_train, y_train, fold_it=[], njobs=1, seed=42, classifier=Fa
             m.fit(this_xtrain, this_ytrain)
             preds += m.predict(this_xtest).tolist()
             true += y_train.take(test_indices,axis=0).tolist()
+        R = pearsonr(true, preds)[0]
+        rmse = np.sqrt(np.mean(np.square(true - preds)))
+        print('%s R=%0.3f, RMSE=%0.3f' %(methodname, R, rmse))
         plot_regressor(true, preds, methodname, palette[plot_num])
         vals = cv_results['test_score']
         for val in vals:
             data['Method'].append(methodname)
             data['R'].append(val)
+
+        plot_num = 6
+        methodname = 'RF-opt'
+        methodcolors[methodname] = palette[plot_num]
+        params = {'min_samples_split': 0.1,
+                'n_estimators': 200, 'min_samples_leaf': 1, 'max_features': 0.5}
+        m = RandomForestRegressor(random_state=seed, n_jobs=njobs, **params)
+        cv_results = cross_validate(m, X_train, y_train, cv=fold_it,
+                scoring=pearsonscore)
+        preds = []
+        true = []
+        for (train_indices,test_indices) in fold_it:
+            this_xtrain = X_train.take(train_indices,axis=0)
+            this_ytrain = y_train.take(train_indices,axis=0)
+            this_xtest = X_train.take(test_indices,axis=0)
+            m.fit(this_xtrain, this_ytrain)
+            preds += m.predict(this_xtest).tolist()
+            true += y_train.take(test_indices,axis=0).tolist()
+        R = pearsonr(true, preds)[0]
+        rmse = np.sqrt(np.mean(np.square(true - preds)))
+        print('%s R=%0.3f, RMSE=%0.3f' %(methodname, R, rmse))
+        plot_regressor(true, preds, methodname, palette[plot_num])
+        vals = cv_results['test_score']
+        for val in vals:
+            data['Method'].append(methodname)
+            data['R'].append(val)
+
+   # now for the boxplots with dots for each fold
         df = pd.DataFrame(data)
         sns.stripplot(x='Method', y='R',
                 data=df, 
