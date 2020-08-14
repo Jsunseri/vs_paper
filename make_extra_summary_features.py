@@ -5,7 +5,7 @@ import pandas as pd
 from plumbum.cmd import uniq,awk,sdsorter
 
 parser = ArgumentParser(description='Make accessory file of features with rows that match a .types file')
-parser.add_argument('-t', '--types', type=str, required=True, help='Input .types file used to order rows')
+parser.add_argument('-t', '--types', nargs='+', help='Input .types file(s) used to order rows')
 parser.add_argument('-tc', '--typescols', type=str, default='Label,Affinity,Recfile,Ligfile', 
         help='Comma-separated column identifiers for .types file')
 parser.add_argument('-s', '--summary', nargs='+', help='One or more summary '
@@ -13,8 +13,10 @@ parser.add_argument('-s', '--summary', nargs='+', help='One or more summary '
         'match to .types file')
 parser.add_argument('-sc', '--summarycols', type=str, default='Label,Prediction,Target,Title,Method', 
         help='Comma-separated column identifiers for summary file')
-parser.add_argument('-d', '--data_root', type=str, default='', 
+parser.add_argument('-d', '--data_root', nargs='+', 
         help='Common top-level directory for all data files')
+parser.add_argument('-o', '--outprefix', type=str, default='extra_features', 
+        help='Prefix for output file of additional features')
 args = parser.parse_args()
 
 # read in with pandas
@@ -23,21 +25,53 @@ args = parser.parse_args()
 # i.e. no gninatypes, if a file is multi-model, i repeat the filename on
 # contiguous lines for each example from the file
 # TODO ok, for now just handle multi-model smi and sdf
-unique_ligs = (awk['{print $NF}', arg.types] | uniq)().strip().split('\n')
-unique_ligs = [os.path.join(args.data_root,x) for x in unique_ligs]
+unique_ligs = []
+for f in args.types:
+    unique_ligs += (awk['{print $NF}', f] | uniq)().strip().split('\n')
+
+order = []
 for lig in unique_ligs:
+    if args.data_root:
+        found = False
+        for path in args.data_root:
+            fullname = os.path.join(path, lig)
+            if os.path.isfile(fullname):
+                found = True
+                break
+        assert found, '%s does not exist in any user-provided directories.' %lig
+    else:
+        fullname = lig
+    target = os.path.basename(os.path.dirname(fullname))
     # if it's a smi just read the file, otherwise use sdsorter or error
-    base,ext = os.path.splitext(lig)
+    base,ext = os.path.splitext(fullname)
     if ext == '.gz':
         base,ext = os.path.splitext(base)
     if ext == '.sdf':
         # sdsorter
+        moltitles = (sdsorter['-print', '-omit-header', fullname] | awk['{print $2}'])().strip().split('\n')
     elif ext == '.smi' or ext == '.ism':
         # just read
+        with open(fullname, 'r') as f:
+            moltitles = [line.strip().split()[-1] for line in f]
     else:
         assert 0, 'Unrecognized extension %s' %ext
+    order += [(target,title) for title in moltitles]
 
-typesfile = pd.read_csv(args.types, delim_whitespace=True, columns=args.typescols)
-
+# match TARGET TITLE, preserving order of types file
+features = {}
 for summaryfile in args.summary:
-    summarydf = pd.read_csv(summaryfile, delim_whitespace=True, columns=args.summarycols)
+    features[summaryfile] = {}
+    with open(summaryfile, 'r') as f:
+        for line in f:
+            contents = line.strip().split()
+            prediction = contents[1]
+            target = contents[2]
+            title = contents[3]
+            features[summaryfile][(target,title)] = prediction
+
+with open('%s.csv' %args.outprefix, 'w') as f:
+    for tup in order:
+        for summaryfile in args.summary:
+            if tup not in features[summaryfile]:
+                features[summaryfile][tup] = '0.0'
+        f.write('%s\n' %(' '.join([features[fname][tup] for fname in args.summary])))

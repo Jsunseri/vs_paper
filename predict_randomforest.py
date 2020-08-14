@@ -7,6 +7,8 @@ import pandas as pd
 from scipy.stats import pearsonr
 from sklearn.metrics import mean_squared_error
 from sklearn.metrics import roc_curve, roc_auc_score
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestRegressor
 
 from train_randomforest import generate_descriptors, FeaturizeOutput
 
@@ -58,21 +60,38 @@ if __name__ == '__main__':
         labels += these_labels
 
     print('Generating descriptors\n')
-    features, failures = generate_descriptors(mol_list, args.data_root, args.method)
-    labels = np.delete(labels, failures, axis=0)
-    df = df.drop(failures)
+    features, failures, moltitles = generate_descriptors(mol_list, args.data_root, args.method)
+    if not moltitles:
+        print('Molecule titles not found in provided input')
 
     print('Making predictions\n')
-    # LABEL PREDICTION TARGET METHOD
-    y_pred = rf.predict(features)
+    # LABEL PREDICTION TARGET TITLE METHOD
+    # for predictions, don't delete failures, just predict inactive (i.e. ~3?
+    # for regressor, 0 for classifier)
+    if isinstance(rf, RandomForestRegressor):
+        y_pred = rf.predict(features)
+        for failure in failures:
+            y_pred = np.insert(y_pred, failure, 3.0)
+    elif isinstance(rf, RandomForestClassifier):
+        y_pred = rf.predict_proba(features)[:,1]
+        for failure in failures:
+            y_pred = np.insert(y_pred, failure, 0.0)
+    else:
+        assert 0, 'Unrecognized Random Forest class %s' %type(rf)
+
     outname = args.outname
     if not outname:
         outname = 'rf_preds'
+
     df['Prediction'] = y_pred
     df['Method'] = 'RF_%s' %args.method
     df['Target'] = df['Ligfile'].apply(lambda x: os.path.basename(os.path.dirname(x)))
-    df.to_csv('%s.csv' %outname, sep=' ', columns=['Label', 'Prediction',
-    'Target', 'Method'], index=False, header=False)
+    if moltitles:
+        df['Title'] = moltitles
+        columnames = ['Label', 'Prediction', 'Target', 'Title', 'Method']
+    else:
+        columnames = ['Label', 'Prediction', 'Target', 'Method']
+    df.to_csv('%s.csv' %outname, sep=' ', columns=columnames, index=False, header=False)
     y_true = df['Label'].tolist()
 
     if scorecol == 'Label':

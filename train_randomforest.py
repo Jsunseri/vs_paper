@@ -1,18 +1,36 @@
 #!/bin/env python
-import sys,os,re,glob,gzip
+import sys,os,re,glob,gzip,math
 from argparse import ArgumentParser
 from collections import namedtuple
-from joblib import dump
+from joblib import load,dump
 
 import numpy as np
 import pandas as pd
+import seaborn as sns
 from pandas.api.types import is_numeric_dtype
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
+from scipy.stats import pearsonr
+from sklearn.metrics import roc_curve, roc_auc_score
+from sklearn.linear_model import Lasso
+
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import cross_val_score
+
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.ensemble import GradientBoostingRegressor
+
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.tree import DecisionTreeRegressor
+
+from sklearn.svm import SVC
+from sklearn.svm import SVR
+
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.neighbors import KNeighborsRegressor
+
+from sklearn.model_selection import cross_validate
 from sklearn.model_selection import GridSearchCV
 
 from rdkit import Chem
@@ -20,10 +38,12 @@ from rdkit.Chem import QED
 from rdkit.Chem import rdmolops
 from rdkit.Chem import rdMolDescriptors
 
+from plumbum.cmd import sdsorter,awk
+
 import vspaper_settings
 
 FoldData = namedtuple('FoldData', ['fnames', 'labels', 'fold_it'])
-FeaturizeOutput = namedtuple('FeaturizeOutput', ['features', 'failures'])
+FeaturizeOutput = namedtuple('FeaturizeOutput', ['features', 'failures', 'moltitles'])
 FixedOutput = namedtuple('FixedOutput', ['labels', 'fold_it'])
 
 def unique_list(seq):
@@ -44,7 +64,7 @@ def exclusive_scan(iterable):
     	total += value
     	yield total 
 
-def find_and_parse_folds(prefix, foldnums='', columns='Label,Affinity,Recfile,Ligfile', fit_all=False):
+def find_and_parse_folds(prefix, foldnums='', columns='Label,Affinity,Recfile,Ligfile', use_all=False):
     '''
     Parameters
     ----------
@@ -55,7 +75,7 @@ def find_and_parse_folds(prefix, foldnums='', columns='Label,Affinity,Recfile,Li
     columns: str, optional
         comma-separated list of column identifiers for fold files; defaults to
         "Label,Affinity,Recfile,Ligfile"
-    fit_all: bool, optional
+    use_all: bool, optional
         whether to fit all numerical columns with RandomForestRegressor.
         default is to prefer affinity if available, fit classifier with label
         if it is not, and complain otherwise unless this was passed
@@ -73,27 +93,34 @@ def find_and_parse_folds(prefix, foldnums='', columns='Label,Affinity,Recfile,Li
     # gnina. since we assume cross validation is being performed, we just parse
     # the _test_ folds, and set up train/test indices for cross validation
     # accordingly
+    # if we don't find explicit train/test folds, check for <prefix>.types and
+    # if so we leave fold_it empty and use the default sklearn CV behavior
     files = []
     if not foldnums:
         foldnums = set()
         glob_files = glob.glob(prefix + '*')
-        pattern = r'(%s)(test)(\d+)\.types$' % (prefix)
+        pattern = r'(%s)(test)?(\d+)?\.types$' % (prefix)
         for file in glob_files:
             match = re.match(pattern, file)
             if match:
-                foldnums.add(int(match.group(3)))
+                if match.group(3) is not None:
+                    foldnums.add(int(match.group(3)))
+                else:
+                    files.append(file)
         foldnums = list(foldnums)
     else:
         foldnums = [int(i) for i in foldnums.split(',') if i]
     foldnums.sort()
     for i in foldnums:
-        files.append('%stest%d.types' % (prefix, i))
+        fname = '%stest%d.types' % (prefix, i)
+        assert os.path.isfile(fname), '%s file not found' %fname
+        files.append(fname)
 
     # we *require* a ligfile and at least one target for
     # regression/classification. by default we look for label and affinity; if
     # only a label is present we use it for classification, and if both are
     # present we use just the affinity for regression. sklearn doesn't seem to
-    # allow mixed-task multi-task models, so if --fit_all is passed, we train a
+    # allow mixed-task multi-task models, so if --use_all is passed, we train a
     # multitask regressor on all numerical columns (including the label if
     # present)
     column_names = [name for name in columns.split(',') if name]
@@ -126,7 +153,10 @@ def find_and_parse_folds(prefix, foldnums='', columns='Label,Affinity,Recfile,Li
                 test = list(range(start, start+num))
         return (train,test)
 
-    fold_it = [get_indices(elems_per_df, idx) for idx in range(len(elems_per_df))]
+    if foldnums:
+        fold_it = [get_indices(elems_per_df, idx) for idx in range(len(elems_per_df))]
+    else:
+        fold_it = []
 
     # get lig filenames
     df = pd.concat(df_list, ignore_index=True, sort=False)
@@ -135,7 +165,7 @@ def find_and_parse_folds(prefix, foldnums='', columns='Label,Affinity,Recfile,Li
     # get y_values
     allcols = df.columns
     ycols = []
-    if fit_all:
+    if use_all:
     	for col in allcols:
     	    if is_numeric_dtype(df[col]):
     	        ycols.append(col)
@@ -145,7 +175,7 @@ def find_and_parse_folds(prefix, foldnums='', columns='Label,Affinity,Recfile,Li
         elif 'Label' in allcols:
             ycols = ['Label']
         else:
-            assert 0, 'Custom fit targets not implemented yet. Pass --fit_all '
+            assert 0, 'Custom fit targets not implemented yet. Pass --use_all '
             'or specify target column as "Affinity"'
     labels = df[ycols].to_numpy()
     return FoldData(fnames, labels, fold_it)
@@ -307,6 +337,7 @@ def generate_descriptors(mol_list, data_root=[], method='DUD-E', extra_descripto
     # user doesn't respect the convention
     failures = []
     features = []
+    moltitles = []
     count = 0 # track total number of mols seen and compare with expected
     assert method == 'MUV' or method == 'DUD-E', "Only MUV or DUD-E molecular "
     "descriptors supported"
@@ -348,10 +379,15 @@ def generate_descriptors(mol_list, data_root=[], method='DUD-E', extra_descripto
             	mols = Chem.ForwardSDMolSupplier(gzip.open(fullname))
             else:
             	mols = Chem.ForwardSDMolSupplier(fullname)
+            # detour here to get the molnames with sdsorter; if we don't have
+            # SDFs or SMIs...sorry, you're on your own
+            moltitles += (sdsorter['-print', '-omit-header', fullname] | awk['{print $2}'])().strip().split('\n')
         # dkoes sometimes typos "ism" for "smi" in filenames...
         elif ext == '.smi' or ext == '.ism':
             with open(fullname, 'r') as f:
                 mols = [Chem.MolFromSmiles(line.split()[0]) for line in f]
+                f.seek(0)
+                moltitles += [line.strip().split()[-1] for line in f]
         else:
             assert 0, 'Unrecognized molecular extension %s' %ext
         for i,mol in enumerate(mols):
@@ -360,13 +396,13 @@ def generate_descriptors(mol_list, data_root=[], method='DUD-E', extra_descripto
                 failures.append(count)
             else:
                 if method == 'DUD-E':
-                    if extra_descriptors:
+                    if extra_descriptors is not None:
                         features.append(get_dude_descriptors(mol) +
                                 extra_descriptors[count,:].tolist())
                     else:
                         features.append(get_dude_descriptors(mol))
                 elif method == 'MUV':
-                    if extra_descriptors:
+                    if extra_descriptors is not None:
                         features.append(get_muv_descriptors(mol) +
                                 extra_descriptors[count,:].tolist())
                     else:
@@ -384,7 +420,7 @@ def generate_descriptors(mol_list, data_root=[], method='DUD-E', extra_descripto
     print('%d mols successfully parsed, %d failures\n' %(len(features), len(failures)))
 
     features = np.asarray(features)
-    return FeaturizeOutput(features, failures)
+    return FeaturizeOutput(features, failures, moltitles)
 
 def delete_failure_indices_from_folds(failures, labels, fold_it):
     '''
@@ -412,45 +448,136 @@ def delete_failure_indices_from_folds(failures, labels, fold_it):
     # that iterator is actually a bunch of lists of indices;
     # each index will appear in two train fold lists and one test fold, 
     # and we can figure out which
-    test_sizes = [len(ttup[1]) for ttup in fold_it]
-    start_indices = [part_sum for part_sum in exclusive_scan(size for size in test_sizes)]
-    foldnums = list(range(len(test_sizes)))
-    index_groups = {}
-    for i in foldnums:
-        index_groups[i] = []
-    # first we'll partition the failed indices by test and train folds
-    for failed in failures:
-        fold = -1
-        for i,start in enumerate(start_indices[1:]):
-            if failed < start:
-                fold = i
-                break
-        assert fold != -1, "Failure index %d exceeds data size %d" %(failed, start_indices[-1])
-        index_groups[fold].append(failed)
+    if fold_it:
+        test_sizes = [len(ttup[1]) for ttup in fold_it]
+        start_indices = [part_sum for part_sum in exclusive_scan(size for size in test_sizes)]
+        foldnums = list(range(len(test_sizes)))
+        index_groups = {}
+        for i in foldnums:
+            index_groups[i] = []
+        # first we'll partition the failed indices by test and train folds
+        for failed in failures:
+            fold = -1
+            for i,start in enumerate(start_indices[1:]):
+                if failed < start:
+                    fold = i
+                    break
+            assert fold != -1, "Failure index %d exceeds data size %d" %(failed, start_indices[-1])
+            index_groups[fold].append(failed)
 
-    # the fold we've noted is the test fold; concat the other folds to get the train fold
-    new_test_folds = {}
-    for fold,failed in index_groups.items():
-        # delete from test
-        failed = sorted(failed, reverse=True)
-        test_failed = [x-start_indices[fold] for x in failed]
-        test = fold_it[fold][1]
-        for index in test_failed:
-            del test[index]
-        new_test_folds[fold] = test
+        # the fold we've noted is the test fold; concat the other folds to get the train fold
+        new_test_folds = {}
+        for fold,failed in index_groups.items():
+            # delete from test
+            failed = sorted(failed, reverse=True)
+            test_failed = [x-start_indices[fold] for x in failed]
+            test = fold_it[fold][1]
+            for index in test_failed:
+                del test[index]
+            new_test_folds[fold] = test
 
-    fold_it = []
-    for fold in foldnums:
-        other_folds = [num for num in foldnums if num != fold]
-        train = []
-        for num in other_folds:
-            train += new_test_folds[num]
-        fold_it.append((train,new_test_folds[fold]))
+        fold_it = []
+        for fold in foldnums:
+            other_folds = [num for num in foldnums if num != fold]
+            train = []
+            for num in other_folds:
+                train += new_test_folds[num]
+            fold_it.append((train,new_test_folds[fold]))
 
     return FixedOutput(labels, fold_it)
 
-# use sklearn to cross validate, train, and optimize hyperparameters 
-def fit_and_cross_validate_model(X_train, y_train, fold_it, param_grid, seed=42, classifier=False):
+def fit_model(X_train, y_train, params=None, njobs=1, seed=42, classifier=False):
+    '''
+    Parameters
+    ----------
+    X_train: array_like
+        training examples
+    y_train: array_like
+        training labels
+    params: dict
+        dict of hyperparameters for random forest
+    njobs: int
+        number of sklearn jobs, corresponding to parallel processes during CV
+    seed: int
+        random seed to pass to Random Forest model
+    classifier: bool
+        whether to train a classifier instead of a regression model
+
+    Returns
+    ----------
+    model: object
+        fit model 
+    '''
+    if params is None:
+        params = {'min_samples_split': 0.1,
+                'n_estimators': 200, 'min_samples_leaf': 1, 'max_features': 0.5}
+    if classifier:
+        rf = RandomForestClassifier(random_state=seed, 
+                n_jobs=njobs, class_weight='balanced_subsample', **params)
+    else:
+        rf = RandomForestRegressor(random_state=seed, n_jobs=njobs, **params)
+    rf.fit(X_train, y_train)
+    return rf
+
+def plot_classifier(true, pred, method, model, plotnum, fig,
+        grid_length, grid_width, color):
+    '''
+    Parameters
+    ----------
+    true: array_like
+        true data values
+    pred: array_like
+        predicted values
+    method: str
+        name of method
+    model: object
+        sklearn model object to fit
+    plotnum: int
+        number of plot in grid
+    fig: matplotlib::Figure
+        figure object to plot on
+    grid_legnth: int
+        length of plot grid
+    grid_width: int
+        width of plot grid
+    color: matplotlib color
+        anything matplotlib can interpret as a color
+    '''
+    sub_ax = plt.subplot2grid((grid_length,grid_width),
+            (plot_num // grid_width, plot_num % grid_width),
+            fig=fig)
+    sub_ax.set_aspect('equal')
+    fpr,tpr,_ = roc_curve(true, pred)
+    subax.plot(fpr, tpr, color=color,
+            label=method, lw=5, zorder=2) 
+    auc, _ = roc_auc_score(true, pred)
+    sub_ax.annotate(r'AUC = {0:.2}$'.format(auc), xy=(.1, .9),
+            xycoords=g.transAxes, bbox=props)
+    sub_ax.set(ylim=(0.0, 1.0))
+    sub_ax.set(xlim=(0.0, 1.0))
+    sub_ax.plot([0, 1], [0, 1], color='gray', lw=5, linestyle='--', zorder=1)
+    sub_ax.title(method)
+
+def plot_regressor(true, pred, method, color):
+    '''
+    Parameters
+    ----------
+    true: array_like
+        true data values
+    pred: array_like
+        predicted values
+    method: str
+        name of method
+    color: matplotlib color
+        anything matplotlib can interpret as a color
+    '''
+    g = sns.jointplot(true, pred, color=color)
+    r, _ = pearsonr(true, pred)
+    g.annotate(r'$\rho = {0:.2}$'.format(r), xy=(.1, .9),
+            xycoords=g.transAxes, bbox=props)
+    g.savefig('%s_regressor_fit.pdf' %method)
+
+def fit_all_models(X_train, y_train, fold_it=[], njobs=1, seed=42, classifier=False):
     '''
     Parameters
     ----------
@@ -460,8 +587,227 @@ def fit_and_cross_validate_model(X_train, y_train, fold_it, param_grid, seed=42,
         training labels
     fold_it: iterable
         iterable yielding fold indices
+    njobs: int
+        number of sklearn jobs, corresponding to parallel processes during CV
+    seed: int
+        random seed to pass to Random Forest model
+    classifier: bool
+        whether to train a classifier instead of a regression model
+
+    Returns
+    ----------
+    '''
+    # for now, don't dump any of the fits, just plot results - 
+
+    if not fold_it: fold_it=5
+    data = {}
+    data['Method'] = []
+    palette = sns.color_palette("hls", n_colors=6, desat=.5).as_hex()
+    methodcolors = {}
+    boxfig,boxax = plt.subplots()
+    # plot grid of ROC curves for fit and boxplot of AUCs for CV
+    if classifier:
+        data['AUC'] = []
+        total_plots = 6
+        grid_width = int(math.ceil(math.sqrt(total_plots)))
+        grid_length = int(math.ceil(float(total_plots)/grid_width))
+        fig,ax = plt.subplots(figsize=(16,16))
+
+        plot_num = 0
+        methodname = 'KNN'
+        methodcolors[methodname] = palette[plot_num]
+        m = KNeighborsClassifier(n_jobs=njobs)
+        cv_results = cross_validate(m, X_train, y_train, cv=fold_it, scoring='roc_auc')
+        m.fit(X_train, y_train)
+        preds = m.predict_proba(X_train, y_train)[:,1]
+        plot_classifier(y_train, preds, methodname, m, plot_num, fig, grid_length,
+                grid_width, palette[plot_num])
+        vals = cv_results['test_score']
+        for val in vals:
+            data['Method'].append(methodname)
+            data['AUC'].append(val)
+
+        plot_num = 1
+        methodname = 'SVM'
+        methodcolors[methodname] = palette[plot_num]
+        m = SVC(n_jobs=njobs)
+        cv_results = cross_validate(m, X_train, y_train, cv=fold_it, scoring='roc_auc')
+        m.fit(X_train, y_train)
+        preds = m.predict_proba(X_train, y_train)[:,1]
+        plot_classifier(y_train, preds, methodname, m, plot_num, fig, grid_length,
+                grid_width, palette[plot_num])
+        vals = cv_results['test_score']
+        for val in vals:
+            data['Method'].append(methodname)
+            data['AUC'].append(val)
+
+        plot_num = 2
+        methodname = 'GBT'
+        methodcolors[methodname] = palette[plot_num]
+        m = GradientBoostingClassifier(n_jobs=njobs)
+        cv_results = cross_validate(m, X_train, y_train, cv=fold_it, scoring='roc_auc')
+        m.fit(X_train, y_train)
+        preds = m.predict_proba(X_train, y_train)[:,1]
+        plot_classifier(y_train, preds, methodname, m, plot_num, fig, grid_length,
+                grid_width, palette[plot_num])
+        vals = cv_results['test_score']
+        for val in vals:
+            data['Method'].append(methodname)
+            data['AUC'].append(val)
+
+        plot_num = 3
+        methodname = 'DT'
+        methodcolors[methodname] = palette[plot_num]
+        m = DecisionTreeClassifier(n_jobs=njobs)
+        cv_results = cross_validate(m, X_train, y_train, cv=fold_it, scoring='roc_auc')
+        m.fit(X_train, y_train)
+        preds = m.predict_proba(X_train, y_train)[:,1]
+        plot_classifier(y_train, preds, methodname, m, plot_num, fig, grid_length,
+                grid_width, palette[plot_num])
+        vals = cv_results['test_r2']
+        for val in vals:
+            data['Method'].append(methodname)
+            data['AUC'].append(val)
+
+        plot_num = 4
+        methodname = 'RF'
+        methodcolors[methodname] = palette[plot_num]
+        m = RandomForestClassifier(random_state=seed, n_jobs=njobs, class_weight='balanced_subsample')
+        cv_results = cross_validate(m, X_train, y_train, cv=fold_it, scoring='roc_auc')
+        m.fit(X_train, y_train)
+        preds = m.predict_proba(X_train, y_train)[:,1]
+        plot_classifier(y_train, preds, methodname, m, plot_num, fig, grid_length,
+                grid_width, palette[plot_num])
+        vals = cv_results['test_score']
+        for val in vals:
+            data['Method'].append(methodname)
+            data['AUC'].append(val)
+
+        fig.savefig('CV_classifier_fit_severalmodels.pdf')
+        df = pd.DataFrame(data)
+        sns.stripplot(x='Method', y='AUC',
+                data=df, 
+                split=True, edgecolor='black', size=10, linewidth=0,
+                linewidths=0.5, jitter = True,
+                palette=methodcolors, marker='o',
+                ax=box_ax)
+        sns.boxplot(x='Method', y='AUC', data=df, 
+                color='white', ax=box_ax)
+        box_fig.savefig('auc_boxplot_severalmodels.pdf')
+    # plot jointplots of preds vs actual, and boxplots of the fold R values
+    else:
+        data['R'] = []
+        plot_num = 0
+        methodname = 'Lasso'
+        methodcolors[methodname] = palette[plot_num]
+        m = Lasso()
+        cv_results = cross_validate(m, X_train, y_train, cv=fold_it,
+                scoring=('r2', 'neg_mean_squared_error'))
+        m.fit(X_train, y_train)
+        preds = m.predict(X_train, y_train)
+        plot_regressor(y_train, preds, methodname, palette[plot_num])
+        vals = cv_results['test_r2']
+        for val in vals:
+            data['Method'].append(methodname)
+            data['R'].append(math.sqrt(val))
+        
+        plot_num = 1
+        methodname = 'KNN'
+        methodcolors[methodname] = palette[plot_num]
+        m = KNeighborsRegressor()
+        cv_results = cross_validate(m, X_train, y_train, cv=fold_it,
+                scoring=('r2', 'neg_mean_squared_error'))
+        m.fit(X_train, y_train)
+        preds = m.predict(X_train, y_train)
+        plot_regressor(y_train, preds, methodname, palette[plot_num])
+        vals = cv_results['test_r2']
+        for val in vals:
+            data['Method'].append(methodname)
+            data['R'].append(math.sqrt(val))
+        
+        plot_num = 2
+        methodname = 'SVM'
+        methodcolors[methodname] = palette[plot_num]
+        m = SVR()
+        cv_results = cross_validate(m, X_train, y_train, cv=fold_it,
+                scoring=('r2', 'neg_mean_squared_error'))
+        m.fit(X_train, y_train)
+        preds = m.predict(X_train, y_train)
+        plot_regressor(y_train, preds, methodname, palette[plot_num])
+        vals = cv_results['test_r2']
+        for val in vals:
+            data['Method'].append(methodname)
+            data['R'].append(math.sqrt(val))
+       
+        plot_num = 3
+        methodname = 'GBT'
+        methodcolors[methodname] = palette[plot_num]
+        m = GradientBoostingRegressor()
+        cv_results = cross_validate(m, X_train, y_train, cv=fold_it,
+                scoring=('r2', 'neg_mean_squared_error'))
+        m.fit(X_train, y_train)
+        preds = m.predict(X_train, y_train)
+        plot_regressor(y_train, preds, methodname, palette[plot_num])
+        vals = cv_results['test_r2']
+        for val in vals:
+            data['Method'].append(methodname)
+            data['R'].append(math.sqrt(val))
+        
+        plot_num = 4
+        methodname = 'DT'
+        methodcolors[methodname] = palette[plot_num]
+        m = DecisionTreeRegressor()
+        cv_results = cross_validate(m, X_train, y_train, cv=fold_it,
+                scoring=('r2', 'neg_mean_squared_error'))
+        m.fit(X_train, y_train)
+        preds = m.predict(X_train, y_train)
+        plot_regressor(y_train, preds, methodname, palette[plot_num])
+        vals = cv_results['test_r2']
+        for val in vals:
+            data['Method'].append(methodname)
+            data['R'].append(math.sqrt(val))
+        
+        plot_num = 5
+        methodname = 'RF'
+        methodcolors[methodname] = palette[plot_num]
+        m = RandomForestRegressor(random_state=seed, n_jobs=njobs)
+        cv_results = cross_validate(m, X_train, y_train, cv=fold_it,
+                scoring=('r2', 'neg_mean_squared_error'))
+        m.fit(X_train, y_train)
+        preds = m.predict(X_train, y_train)
+        plot_regressor(y_train, preds, methodname, palette[plot_num])
+        vals = cv_results['test_r2']
+        for val in vals:
+            data['Method'].append(methodname)
+            data['R'].append(math.sqrt(val))
+        df = pd.DataFrame(data)
+        sns.stripplot(x='Method', y='R',
+                data=df, 
+                split=True, edgecolor='black', size=10, linewidth=0,
+                linewidths=0.5, jitter = True,
+                palette=methodcolors, marker='o',
+                ax=box_ax)
+        sns.boxplot(x='Method', y='R', data=df, 
+                color='white', ax=box_ax)
+        box_fig.savefig('pearsonr_boxplot_severalmodels.pdf')
+    return 
+
+# use sklearn to cross validate, train, and optimize hyperparameters 
+def fit_and_cross_validate_model(X_train, y_train, fold_it, param_grid, njobs=1, seed=42, classifier=False):
+    '''
+    Parameters
+    ----------
+    X_train: array_like
+        training examples
+    y_train: array_like
+        training labels
+    fold_it: iterable
+        iterable yielding fold indices; if None, just use the default CV
+        strategy (currently 5-fold)
     param_grid: dict
         dictionary mapping hyperparams and values to define the grid search
+    njobs: int
+        number of sklearn jobs, corresponding to parallel processes during CV
     seed: int
         random seed to pass to Random Forest model
     classifier: bool
@@ -474,7 +820,8 @@ def fit_and_cross_validate_model(X_train, y_train, fold_it, param_grid, seed=42,
     '''
 
     if classifier:
-        rf = RandomForestClassifier(random_state=seed)
+        rf = RandomForestClassifier(random_state=seed,
+                class_weight='balanced_subsample')
         scorer = 'roc_auc'
         refit = True
     else:
@@ -482,7 +829,12 @@ def fit_and_cross_validate_model(X_train, y_train, fold_it, param_grid, seed=42,
         scorer = ['r2', 'neg_mean_squared_error']
         refit = 'r2'
 
-    grf = GridSearchCV(rf, param_grid, cv=fold_it, scoring=scorer, return_train_score=True, refit=refit)
+    # could pass njobs to RF instead, don't really want to do both because this
+    # would be surprising to the user i think
+    if fold_it:
+        grf = GridSearchCV(rf, param_grid, cv=fold_it, scoring=scorer, n_jobs=njobs, return_train_score=True, refit=refit)
+    else:
+        grf = GridSearchCV(rf, param_grid, scoring=scorer, n_jobs=njobs, return_train_score=True, refit=refit)
     grf.fit(X_train, y_train)
     return grf
 
@@ -562,14 +914,19 @@ def plot_cv_results(results, gp1, gp2, classifier=False, figname='gridsearch_res
 if __name__=='__main__':
     parser = ArgumentParser(description='Train a Random Forest model for '
             'classification or regression using simple molecular descriptors')
-    parser.add_argument('-p', '--prefix', type=str, required=True,
-            help="Prefix for training/test files: <prefix>[train|test][num].types")
+    parser.add_argument('-p', '--prefix', type=str, default='',
+            help='Prefix for training/test files: '
+            '<prefix>[train|test][num].types will use those partitions for cross '
+            'validation, while a single file <prefix>.types will do 5-fold '
+            'randomly partitioned cross validation')
     parser.add_argument('-n', '--foldnums', type=str, required=False, default=None, 
             help="Fold numbers to run, default is to determine using glob")
     parser.add_argument('-c', '--columns', type=str, default='Label,Affinity,Recfile,Ligfile',
             help='Comma-separated list of column identifiers for folds files, '
             'default is "Label,Affinity,Recfile,Ligfile"')
     parser.add_argument('-d', '--descriptor_file', type=str, default='',
+            help='Provide precomputed descriptors for the mols')
+    parser.add_argument('-e', '--extra_descriptors', type=str, default='',
             help='Provide an additional file with precomputed descriptors')
     parser.add_argument('-r', '--data_root', nargs='*', default=[], 
             help='Common path to join with molnames to generate full location '
@@ -578,22 +935,48 @@ if __name__=='__main__':
             help='Descriptor set to use; options are "DUD-E" or "MUV"')
     parser.add_argument('-s', '--seed', type=int, default=42,
             help='Random seed, used for boostrapping and feature sampling')
-    parser.add_argument('-f', '--fit_all', action='store_true', 
-            help='Fit all numerical columns in types file with RFRegressor. '
+    parser.add_argument('-u', '--use_all', action='store_true', 
+            help='Use all numerical columns in types file with RFRegressor. '
             'Default is to use only affinity if available, label if it is not')
+    parser.add_argument('-f', '--fit_all', action='store_true', 
+            help='Fit all available models with default parameters: Lasso, KNN, '
+            'SVM, RF, GBT, DT')
+    parser.add_argument('-j', '--just_fit', action='store_true',
+            help='Just fit using reasonable settings, no hyperparameter sampling')
+    parser.add_argument('-nc', '--ncpus', type=int, default=1, 
+            help='Number of processes to launch for model fitting; default=1')
     parser.add_argument('-o', '--outprefix', type=str, default='', 
             help='Output prefix for trained random forest pickle and train/test figs')
     args = parser.parse_args()
 
-    fold_data = find_and_parse_folds(args.prefix, args.foldnums, args.columns, args.fit_all)
     # include features from user-provided file of precomputed features, if available
-    if args.descriptor_file:
-        extra_df = pd.read_csv(descriptor_file, delim_whitespace=True)
-        assert extra_df.shape[0] == len(fold_data.labels), 'Extra descriptor file should have the ' 
-        'same number of examples as the folds'
+    if args.extra_descriptors:
+        extra_df = pd.read_csv(args.extra_descriptors, delim_whitespace=True, header=None)
         extra_descs = extra_df.to_numpy()
-    print('Generating descriptors...\n')
-    featurize_output = generate_descriptors(fold_data.fnames, args.data_root, args.method, extra_descs)
+
+    # read in precomputed descriptors to save time if provided (hopefully this
+    # saves time)
+    if args.descriptor_file:
+        print('Reading in precomputed descriptors; additional descriptors/mols '
+                'will not be included, but extra descriptors will be '
+                'concatenated\n')
+        fold_data,featurize_output = load(args.descriptor_file)
+        if args.extra_descriptors:
+            shape = featurize_output.features.shape
+            extra_shape = extra_descs.shape
+            assert shape[0] == extra_shape[0], 'First dim of descriptors and '
+            'extra_descriptors must match, but they are %d and %d' %(shape[0], extra_shape[0])
+            featurize_output.features = np.append(featurize_output.features,
+                    extra_descs, axis=1)
+    else:
+        assert args.prefix, 'Need fold files if precomputed descriptors are not provided'
+        fold_data = find_and_parse_folds(args.prefix, args.foldnums, args.columns, args.use_all)
+        if args.extra_descriptors:
+            assert extra_df.shape[0] == len(fold_data.labels), 'Extra descriptor file should have the same number of examples as the folds but has %s instead of %s' %(extra_df.shape[0], len(fold_data.labels))
+        # TODO: multiprocess this? would need to rewrite how fold iteratable is made
+        print('Generating descriptors...\n')
+        featurize_output = generate_descriptors(fold_data.fnames, args.data_root,
+                args.method, extra_descs)
    
     if featurize_output.failures: 
         print('Removing failed examples\n')
@@ -605,45 +988,65 @@ if __name__=='__main__':
         fold_it = fold_data.fold_it
 
     colnames = args.columns.split(',')
-    if args.fit_all or 'Affinity' in colnames:
+    if args.use_all or 'Affinity' in colnames:
         classifier = False
     else:
         classifier = True
 
-    # TODO: maybe too much?
-    param_grid = {
-        'min_samples_split': [0.1, 0.25, 0.5, 1.0],
-        'min_samples_leaf': [0.1, 0.25, 0.5, 1],
-        'max_features': ['sqrt', 0.25, 0.5, 0.75, 1.0],
-        'n_estimators': [100, 200, 400, 750]
-    }
-    print('Fitting model\n')
     # TODO: reshape instead? what happens with more than one target value?
     if len(labels.shape) == 2 and labels.shape[1] == 1:
         labels = labels.ravel()
-    rf = fit_and_cross_validate_model(featurize_output.features, labels, fold_it, param_grid, args.seed, classifier)
-    print("best parameters: {}".format(rf.best_params_))
-    if not classifier:
-        r2 = rf.cv_results_['mean_test_r2'][rf.best_index_]
-        r2_stdev = rf.cv_results_['std_test_r2'][rf.best_index_]
-        print("best R2: {:0.5f} (+/-{:0.5f})".format(r2, r2_stdev))
-        score = -rf.cv_results_['mean_test_neg_mean_squared_error'][rf.best_index_]
-        rf_stdev = rf.cv_results_['std_test_neg_mean_squared_error'][rf.best_index_]
-        scoretype = 'MSE'
+
+    if not args.descriptor_file:
+        print('Dumping computed descriptors for reuse.\n')
+        dump((FoldData([], labels, fold_it), FeaturizeOutput(featurize_output.features, [], [])), 
+                '%sdescriptors.joblib' %args.outprefix)
+
+    if args.just_fit:
+        # TODO: use default params instead? probably add an option...
+        params = {'min_samples_split': 0.1,
+                'n_estimators': 200, 'min_samples_leaf': 1, 'max_features': 0.5}
+        print('Since --just_fit was passed, doing a single fit with params %s' %str(params))
+        rf = fit_model(featurize_output.features, labels, params, args.ncpus, args.seed, classifier)
+        print("Mean accuracy: {:0.5f}".format(rf.score(featurize_output.features, labels)))
+        print('Dumping fit model for later\n')
+        dump(rf, '%s.joblib' %args.outprefix)
+    elif args.fit_all:
+        fit_all_models(featurize_output.features, labels, args.ncpus, args.seed, classifier)
     else:
-        score = rf.best_score_
-        rf_stdev = rf.cv_results_['std_test_score'][rf.best_index_]
-        scoretype = 'score'
-    print("best {}: {:0.5f} (+/-{:0.5f})".format(scoretype, score, rf_stdev))
+        # TODO: maybe too much? min_samples_split at least seems to just be the
+        # best at 0.1, no real need to sample
+        param_grid = {
+            'min_samples_split': [0.1, 0.25, 0.5, 1.0],
+            'min_samples_leaf': [0.1, 0.25, 0.5, 1],
+            'max_features': ['sqrt', 0.25, 0.5, 0.75, 1.0],
+            'n_estimators': [100, 200, 400, 750]
+        }
+        print('Fitting model\n')
+        rf = fit_and_cross_validate_model(featurize_output.features, labels, fold_it, param_grid, 
+                args.ncpus, args.seed, classifier)
+        print("best parameters: {}".format(rf.best_params_))
+        if not classifier:
+            r2 = rf.cv_results_['mean_test_r2'][rf.best_index_]
+            r2_stdev = rf.cv_results_['std_test_r2'][rf.best_index_]
+            print("best R2: {:0.5f} (+/-{:0.5f})".format(r2, r2_stdev))
+            score = -rf.cv_results_['mean_test_neg_mean_squared_error'][rf.best_index_]
+            rf_stdev = rf.cv_results_['std_test_neg_mean_squared_error'][rf.best_index_]
+            scoretype = 'MSE'
+        else:
+            score = rf.best_score_
+            rf_stdev = rf.cv_results_['std_test_score'][rf.best_index_]
+            scoretype = 'score'
+        print("best {}: {:0.5f} (+/-{:0.5f})".format(scoretype, score, rf_stdev))
 
-    if not args.outprefix:
-        args.outprefix = '%s_RF_%d' %(args.method, os.getpid())
-    print('Dumping best model for later\n')
-    dump(rf.best_estimator_, '%s.joblib' %args.outprefix)
+        if not args.outprefix:
+            args.outprefix = '%s_RF_%d' %(args.method, os.getpid())
+        print('Dumping best model for later\n')
+        dump(rf.best_estimator_, '%s.joblib' %args.outprefix)
 
-    params = list(param_grid.keys())
-    gp1 = params[0]
-    print('Plotting hyperparameter search results\n')
-    for gp2 in params[1:]:
-        plot_cv_results(rf.cv_results_, (gp1,param_grid[gp1]), (gp2,param_grid[gp2]), classifier, 
-                        '%s_%s_%s_gridsearch_results.pdf' %(args.outprefix,gp1,gp2))
+        params = list(param_grid.keys())
+        gp1 = params[0]
+        print('Plotting hyperparameter search results\n')
+        for gp2 in params[1:]:
+            plot_cv_results(rf.cv_results_, (gp1,param_grid[gp1]), (gp2,param_grid[gp2]), classifier, 
+                            '%s_%s_%s_gridsearch_results.pdf' %(args.outprefix,gp1,gp2))
