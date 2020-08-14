@@ -30,7 +30,7 @@ from sklearn.svm import SVR
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.neighbors import KNeighborsRegressor
 
-from sklearn.model_selection import cross_validate
+from sklearn.model_selection import cross_validate, cross_val_predict
 from sklearn.model_selection import GridSearchCV
 
 from rdkit import Chem
@@ -701,15 +701,23 @@ def fit_all_models(X_train, y_train, fold_it=[], njobs=1, seed=42, classifier=Fa
             return pearsonr(y_true, y_pred)[0]
         pearsonscore = make_scorer(pearsonfunc)
         data['R'] = []
+
         plot_num = 0
         methodname = 'Lasso'
         methodcolors[methodname] = palette[plot_num]
         m = Lasso()
         cv_results = cross_validate(m, X_train, y_train, cv=fold_it,
                 scoring=pearsonscore)
-        m.fit(X_train, y_train)
-        preds = m.predict(X_train)
-        plot_regressor(y_train, preds, methodname, palette[plot_num])
+        preds = []
+        true = []
+        for (train_indices,test_indices) in fold_it:
+            this_xtrain = X_train.take(train_indices,axis=0)
+            this_ytrain = y_train.take(train_indices,axis=0)
+            this_xtest = X_train.take(test_indices,axis=0)
+            m.fit(this_xtrain, this_ytrain)
+            preds += m.predict(this_xtest).tolist()
+            true += y_train.take(test_indices,axis=0).tolist()
+        plot_regressor(true, preds, methodname, palette[plot_num])
         vals = cv_results['test_score']
         for val in vals:
             data['Method'].append(methodname)
@@ -721,9 +729,16 @@ def fit_all_models(X_train, y_train, fold_it=[], njobs=1, seed=42, classifier=Fa
         m = KNeighborsRegressor()
         cv_results = cross_validate(m, X_train, y_train, cv=fold_it,
                 scoring=pearsonscore)
-        m.fit(X_train, y_train)
-        preds = m.predict(X_train)
-        plot_regressor(y_train, preds, methodname, palette[plot_num])
+        preds = []
+        true = []
+        for (train_indices,test_indices) in fold_it:
+            this_xtrain = X_train.take(train_indices,axis=0)
+            this_ytrain = y_train.take(train_indices,axis=0)
+            this_xtest = X_train.take(test_indices,axis=0)
+            m.fit(this_xtrain, this_ytrain)
+            preds += m.predict(this_xtest).tolist()
+            true += y_train.take(test_indices,axis=0).tolist()
+        plot_regressor(true, preds, methodname, palette[plot_num])
         vals = cv_results['test_score']
         for val in vals:
             data['Method'].append(methodname)
@@ -735,9 +750,16 @@ def fit_all_models(X_train, y_train, fold_it=[], njobs=1, seed=42, classifier=Fa
         m = SVR()
         cv_results = cross_validate(m, X_train, y_train, cv=fold_it,
                 scoring=pearsonscore)
-        m.fit(X_train, y_train)
-        preds = m.predict(X_train)
-        plot_regressor(y_train, preds, methodname, palette[plot_num])
+        preds = []
+        true = []
+        for (train_indices,test_indices) in fold_it:
+            this_xtrain = X_train.take(train_indices,axis=0)
+            this_ytrain = y_train.take(train_indices,axis=0)
+            this_xtest = X_train.take(test_indices,axis=0)
+            m.fit(this_xtrain, this_ytrain)
+            preds += m.predict(this_xtest).tolist()
+            true += y_train.take(test_indices,axis=0).tolist()
+        plot_regressor(true, preds, methodname, palette[plot_num])
         vals = cv_results['test_score']
         for val in vals:
             data['Method'].append(methodname)
@@ -749,8 +771,15 @@ def fit_all_models(X_train, y_train, fold_it=[], njobs=1, seed=42, classifier=Fa
         m = GradientBoostingRegressor()
         cv_results = cross_validate(m, X_train, y_train, cv=fold_it,
                 scoring=pearsonscore)
-        m.fit(X_train, y_train)
-        preds = m.predict(X_train)
+        preds = []
+        true = []
+        for (train_indices,test_indices) in fold_it:
+            this_xtrain = X_train.take(train_indices,axis=0)
+            this_ytrain = y_train.take(train_indices,axis=0)
+            this_xtest = X_train.take(test_indices,axis=0)
+            m.fit(this_xtrain, this_ytrain)
+            preds += m.predict(this_xtest).tolist()
+            true += y_train.take(test_indices,axis=0).tolist()
         plot_regressor(y_train, preds, methodname, palette[plot_num])
         vals = cv_results['test_score']
         for val in vals:
@@ -763,9 +792,16 @@ def fit_all_models(X_train, y_train, fold_it=[], njobs=1, seed=42, classifier=Fa
         m = DecisionTreeRegressor()
         cv_results = cross_validate(m, X_train, y_train, cv=fold_it,
                 scoring=pearsonscore)
-        m.fit(X_train, y_train)
-        preds = m.predict(X_train)
-        plot_regressor(y_train, preds, methodname, palette[plot_num])
+        preds = []
+        true = []
+        for (train_indices,test_indices) in fold_it:
+            this_xtrain = X_train.take(train_indices,axis=0)
+            this_ytrain = y_train.take(train_indices,axis=0)
+            this_xtest = X_train.take(test_indices,axis=0)
+            m.fit(this_xtrain, this_ytrain)
+            preds += m.predict(this_xtest).tolist()
+            true += y_train.take(test_indices,axis=0).tolist()
+        plot_regressor(true, preds, methodname, palette[plot_num])
         vals = cv_results['test_score']
         for val in vals:
             data['Method'].append(methodname)
@@ -777,9 +813,16 @@ def fit_all_models(X_train, y_train, fold_it=[], njobs=1, seed=42, classifier=Fa
         m = RandomForestRegressor(random_state=seed, n_jobs=njobs)
         cv_results = cross_validate(m, X_train, y_train, cv=fold_it,
                 scoring=pearsonscore)
-        m.fit(X_train, y_train)
-        preds = m.predict(X_train)
-        plot_regressor(y_train, preds, methodname, palette[plot_num])
+        preds = []
+        true = []
+        for (train_indices,test_indices) in fold_it:
+            this_xtrain = X_train.take(train_indices,axis=0)
+            this_ytrain = y_train.take(train_indices,axis=0)
+            this_xtest = X_train.take(test_indices,axis=0)
+            m.fit(this_xtrain, this_ytrain)
+            preds += m.predict(this_xtest).tolist()
+            true += y_train.take(test_indices,axis=0).tolist()
+        plot_regressor(true, preds, methodname, palette[plot_num])
         vals = cv_results['test_score']
         for val in vals:
             data['Method'].append(methodname)
