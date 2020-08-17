@@ -39,6 +39,8 @@ from rdkit.Chem import QED
 from rdkit.Chem import rdmolops
 from rdkit.Chem import rdMolDescriptors
 
+from openbabel import pybel
+
 from plumbum.cmd import sdsorter,awk
 
 import vspaper_settings
@@ -320,7 +322,7 @@ def get_muv_descriptors(mol):
 
 # we generate descriptors with rdkit and give the user the option of using the
 # DUD-E or MUV descriptors
-def generate_descriptors(mol_list, data_root=[], method='DUD-E', extra_descriptors=None):
+def generate_descriptors(mol_list, data_root=[], method='DUD-E', use_babel=False, extra_descriptors=None):
     '''
     Parameters
     ----------
@@ -332,6 +334,8 @@ def generate_descriptors(mol_list, data_root=[], method='DUD-E', extra_descripto
         exhausted
     method: {'DUD-E', 'MUV'}, optional
         Which set of descriptors to use; either DUD-E (the default) or MUV
+    use_babel: bool
+        parse files and generate descriptors with babel instead of rdkit
     extra_descriptors: array_like, optional
         N_mols X N_descs array of additional user-provided descriptors
 
@@ -376,60 +380,76 @@ def generate_descriptors(mol_list, data_root=[], method='DUD-E', extra_descripto
             assert found, '%s does not exist in any user-provided directories.' %molname
         else:
             fullname = molname
-        assert ext != '.gninatypes', "Sorry, no gninatypes support currently. "
-        "Just pass the starting structure files; if you have multi-model SDFs, "
-        "repeat the filename for each example derived from that file and the "
-        "script will handle it."
-        if ext == '.gz':
-            base,ext = os.path.splitext(base)
-            assert ext == '.sdf', "Only SDFs can be gzipped for now."
-            gzipped = True
-        if ext == '.pdb':
-            mol = Chem.MolFromPDBFile(fullname)
-            mols = [mol]
-        elif ext == '.mol2':
-            mol = Chem.MolFromMol2File(fullname)
-            mols = [mol]
-        elif ext == '.sdf':
-            if gzipped:
-                mols = Chem.ForwardSDMolSupplier(gzip.open(fullname))
-            else:
-                mols = Chem.ForwardSDMolSupplier(fullname)
-            # detour here to get the molnames with sdsorter; if we don't have
-            # SDFs or SMIs...sorry, you're on your own for names
-            moltitles += (sdsorter['-print', '-omit-header', fullname] | awk['{print $2}'])().strip().split('\n')
-        # dkoes sometimes typos "ism" for "smi" in filenames...
-        elif ext == '.smi' or ext == '.ism':
-            with open(fullname, 'r') as f:
-                mols = [Chem.MolFromSmiles(line.split()[0]) for line in f]
-                f.seek(0)
-                moltitles += [line.strip().split()[-1] for line in f]
-        else:
-            assert 0, 'Unrecognized molecular extension %s' %ext
-        for i,mol in enumerate(mols):
-            if mol is None:
-                print('Problem with molecule %d from file %s\n' %(i+1,molname))
-                failures.append(count)
-            else:
-                if method == 'DUD-E':
+        if use_babel:
+            for i,mol in enumerate(pybel.readfile(ext.split('.')[-1], fullname)):
+                if mol is not None:
+                    desc = mol.calcdesc()
+                    desc['charge'] = mol.charge
                     if extra_descriptors is not None:
-                        features.append(get_dude_descriptors(mol) +
-                                extra_descriptors[count,:].tolist())
+                        features.append([desc[d] for d in ['MW','HBA1','HBD','rotors','logP','charge']] + 
+                                        extra_descriptors[count,:].tolist())
                     else:
-                        features.append(get_dude_descriptors(mol))
-                elif method == 'MUV':
-                    if extra_descriptors is not None:
-                        features.append(get_muv_descriptors(mol) +
-                                extra_descriptors[count,:].tolist())
-                    else:
-                        features.append(get_muv_descriptors(mol))
+                        features.append([desc[d] for d in ['MW','HBA1','HBD','rotors','logP','charge']])
                 else:
-                    # shouldn't get here because we already asserted above,
-                    # buuuuut just in case
-                    print('Unsupported molecular descriptor set %s\n' %method)
-                    sys.exit()
-            count += 1
-        assert i+1 == expected_mols_per_file[molname], "Got %d mols from %s but expected %d" %(i+1,molname, expected_mols_per_file[molname])
+                    print('Problem with molecule %d from file %s\n' %(i+1,molname))
+                    failures.append(count)
+                count += 1
+            assert i+1 == expected_mols_per_file[molname], "Got %d mols from %s but expected %d" %(i+1,molname, expected_mols_per_file[molname])
+        else:
+          assert ext != '.gninatypes', "Sorry, no gninatypes support currently. "
+          "Just pass the starting structure files; if you have multi-model SDFs, "
+          "repeat the filename for each example derived from that file and the "
+          "script will handle it."
+          if ext == '.gz':
+              base,ext = os.path.splitext(base)
+              assert ext == '.sdf', "Only SDFs can be gzipped for now."
+              gzipped = True
+          if ext == '.pdb':
+              mol = Chem.MolFromPDBFile(fullname)
+              mols = [mol]
+          elif ext == '.mol2':
+              mol = Chem.MolFromMol2File(fullname)
+              mols = [mol]
+          elif ext == '.sdf':
+              if gzipped:
+                  mols = Chem.ForwardSDMolSupplier(gzip.open(fullname))
+              else:
+                  mols = Chem.ForwardSDMolSupplier(fullname)
+              # detour here to get the molnames with sdsorter; if we don't have
+              # SDFs or SMIs...sorry, you're on your own for names
+              moltitles += (sdsorter['-print', '-omit-header', fullname] | awk['{print $2}'])().strip().split('\n')
+          # dkoes sometimes typos "ism" for "smi" in filenames...
+          elif ext == '.smi' or ext == '.ism':
+              with open(fullname, 'r') as f:
+                  mols = [Chem.MolFromSmiles(line.split()[0]) for line in f]
+                  f.seek(0)
+                  moltitles += [line.strip().split()[-1] for line in f]
+          else:
+              assert 0, 'Unrecognized molecular extension %s' %ext
+          for i,mol in enumerate(mols):
+              if mol is None:
+                  print('Problem with molecule %d from file %s\n' %(i+1,molname))
+                  failures.append(count)
+              else:
+                  if method == 'DUD-E':
+                      if extra_descriptors is not None:
+                          features.append(get_dude_descriptors(mol) +
+                                  extra_descriptors[count,:].tolist())
+                      else:
+                          features.append(get_dude_descriptors(mol))
+                  elif method == 'MUV':
+                      if extra_descriptors is not None:
+                          features.append(get_muv_descriptors(mol) +
+                                  extra_descriptors[count,:].tolist())
+                      else:
+                          features.append(get_muv_descriptors(mol))
+                  else:
+                      # shouldn't get here because we already asserted above,
+                      # buuuuut just in case
+                      print('Unsupported molecular descriptor set %s\n' %method)
+                      sys.exit()
+              count += 1
+          assert i+1 == expected_mols_per_file[molname], "Got %d mols from %s but expected %d" %(i+1,molname, expected_mols_per_file[molname])
 
     assert count == len(mol_list), "Saw %d mols but expected %d" %(count, len(mol_list))
     
@@ -460,7 +480,7 @@ def delete_failure_indices_from_folds(failures, labels, fold_it):
     # delete labels associated with any mols we failed to parse
     labels = np.delete(labels, failures, axis=0)
  
-    # also delete them from the iterator defining the folds...
+    # also delete them from the iterable defining the folds, if it is populated
     # that iterable is actually a bunch of lists of indices;
     # each index will appear in two train fold lists and one test fold, 
     # and we can figure out which
@@ -907,9 +927,15 @@ if __name__=='__main__':
             help='Just fit using reasonable settings, no hyperparameter sampling')
     parser.add_argument('-nc', '--ncpus', type=int, default=1, 
             help='Number of processes to launch for model fitting; default=1')
+    parser.add_argument('-b', '--use_babel', action='store_true', 
+            help='Use OpenBabel to read in molecules and generate descriptors (default is to use rdkit)')
     parser.add_argument('-o', '--outprefix', type=str, default='', 
             help='Output prefix for trained random forest pickle and train/test figs')
     args = parser.parse_args()
+
+    # for now
+    if args.method == 'MUV':
+        assert not args.use_babel, 'For now, featurization with babel only supports DUD-E descriptors'
 
     # include features from user-provided file of precomputed features, if available
     if args.extra_descriptors:
@@ -940,7 +966,7 @@ if __name__=='__main__':
         # TODO: multiprocess this? would need to rewrite how fold iteratable is made
         print('Generating descriptors...\n')
         featurize_output = generate_descriptors(fold_data.fnames, args.data_root,
-                args.method, extra_descs)
+                args.method, args.use_babel, extra_descs)
    
     if featurize_output.failures: 
         print('Removing failed examples\n')
