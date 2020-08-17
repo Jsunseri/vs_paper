@@ -46,6 +46,18 @@ import vspaper_settings
 FoldData = namedtuple('FoldData', ['fnames', 'labels', 'fold_it'])
 FeaturizeOutput = namedtuple('FeaturizeOutput', ['features', 'failures', 'moltitles'])
 FixedOutput = namedtuple('FixedOutput', ['labels', 'fold_it'])
+FitOutput = namedtuple('FitOutput', ['test_scores', 'y_pred', 'y_true'])
+
+classifiers = (KNeighborsClassifier, SVC, GradientBoostingClassifier, DecisionTreeClassifier, 
+               RandomForestClassifier)
+regressors = (Lasso, KNeighborsRegressor, SVR, GradientBoostingRegressor, DecisionTreeRegressor, 
+               RandomForestRegressor)
+methodnames = {KNeighborsClassifier = 'KNN', SVC = 'SVM', GradientBoostingClassifier = 'GBT', 
+               DecisionTreeClassifier = 'DT', RandomForestClassifier = 'RF', 
+               Lasso = 'Lasso', KNeighborsRegressor = 'KNN', SVR = 'SVM', 
+               GradientBoostingRegressor = 'GBT', DecisionTreeRegressor='DT', 
+               RandomForestRegressor = 'RF'
+              }
 
 def unique_list(seq):
     '''
@@ -518,8 +530,7 @@ def fit_model(X_train, y_train, params=None, njobs=1, seed=42, classifier=False)
     rf.fit(X_train, y_train)
     return rf
 
-def plot_classifier(true, pred, method, model, plotnum, fig,
-        grid_length, grid_width, color):
+def plot_classifier(true, pred, method, fig, grid_length, grid_width, color):
     '''
     Parameters
     ----------
@@ -529,13 +540,9 @@ def plot_classifier(true, pred, method, model, plotnum, fig,
         predicted values
     method: str
         name of method
-    model: object
-        sklearn model object to fit
-    plotnum: int
-        number of plot in grid
     fig: matplotlib::Figure
         figure object to plot on
-    grid_legnth: int
+    grid_length: int
         length of plot grid
     grid_width: int
         width of plot grid
@@ -577,6 +584,58 @@ def plot_regressor(true, pred, method, color):
     g.fig.suptitle(method)
     g.savefig('%s_regressor_fit.pdf' %method)
 
+def do_fit(estimator, X_train, y_train, fold_it=5):
+    '''
+    Parameters
+    ----------
+    estimator: estimator object implementing ‘fit’ and ‘predict’
+        the object to use to fit the data
+    X_train: array_like
+        training examples
+    y_train: array_like
+        training labels
+    fold_it: iterable or int
+        iterable yielding fold indices or int K for K-fold 
+
+    Returns
+    ----------
+    test_scores: array_like
+        CV score results
+    y_pred: array_like
+        cumulative predictions for cross validated test examples
+    y_true: array_like
+        true values corresponding to predictions
+    '''
+    def pearsonfunc(y_true, y_pred):
+        return pearsonr(y_true, y_pred)[0]
+    pearsonscore = make_scorer(pearsonfunc)
+
+    if isinstance(estimator, classifiers):
+        scoring = 'roc_auc'
+        classifier = True
+    else:
+        scoring = pearsonscore
+        classifier = False
+
+    cv_results = cross_validate(estimator, X_train, y_train, cv=fold_it,
+            scoring=scoring)
+
+    if isinstance(fold_it, int):
+        y_pred = cross_val_predict(estimator, X_train, y_train, cv=fold_it method=’predict_proba’)[:,-1]
+    else:
+    	y_pred = []
+    	y_true = []
+    	for (train_indices,test_indices) in fold_it:
+    	    this_xtrain = X_train.take(train_indices,axis=0)
+    	    this_ytrain = y_train.take(train_indices,axis=0)
+    	    this_xtest = X_train.take(test_indices,axis=0)
+    	    estimator.fit(this_xtrain, this_ytrain)
+    	    y_pred += estimator.predict(this_xtest).tolist()
+    	    y_true += y_train.take(test_indices,axis=0).tolist()
+    	y_pred = np.array(preds)
+    	true = np.array(true)
+    return (cv_results['test_score'], y_pred, y_train)
+
 def fit_all_models(X_train, y_train, fold_it=[], njobs=1, seed=42, classifier=False):
     '''
     Parameters
@@ -597,9 +656,9 @@ def fit_all_models(X_train, y_train, fold_it=[], njobs=1, seed=42, classifier=Fa
     Returns
     ----------
     '''
-    # for now, don't dump any of the fits, just plot results - 
-
+    # for now, don't dump any of the fits, just plot results 
     if not fold_it: fold_it=5
+
     data = {}
     data['Method'] = []
     palette = sns.color_palette("hls", n_colors=8, desat=.5).as_hex()
@@ -608,80 +667,20 @@ def fit_all_models(X_train, y_train, fold_it=[], njobs=1, seed=42, classifier=Fa
     # plot grid of ROC curves for fit and boxplot of AUCs for CV
     if classifier:
         data['AUC'] = []
-        total_plots = 6
+        total_plots = len(classifiers)
         grid_width = int(math.ceil(math.sqrt(total_plots)))
         grid_length = int(math.ceil(float(total_plots)/grid_width))
         fig,ax = plt.subplots(figsize=(16,16))
-
-        plot_num = 0
-        methodname = 'KNN'
-        methodcolors[methodname] = palette[plot_num]
-        m = KNeighborsClassifier(n_jobs=njobs, random_state=seed)
-        cv_results = cross_validate(m, X_train, y_train, cv=fold_it, scoring='roc_auc')
-        m.fit(X_train, y_train)
-        preds = m.predict_proba(X_train)[:,1]
-        plot_classifier(y_train, preds, methodname, m, plot_num, fig, grid_length,
-                grid_width, palette[plot_num])
-        vals = cv_results['test_score']
-        for val in vals:
-            data['Method'].append(methodname)
-            data['AUC'].append(val)
-
-        plot_num = 1
-        methodname = 'SVM'
-        methodcolors[methodname] = palette[plot_num]
-        m = SVC(n_jobs=njobs, random_state=seed)
-        cv_results = cross_validate(m, X_train, y_train, cv=fold_it, scoring='roc_auc')
-        m.fit(X_train, y_train)
-        preds = m.predict_proba(X_train)[:,1]
-        plot_classifier(y_train, preds, methodname, m, plot_num, fig, grid_length,
-                grid_width, palette[plot_num])
-        vals = cv_results['test_score']
-        for val in vals:
-            data['Method'].append(methodname)
-            data['AUC'].append(val)
-
-        plot_num = 2
-        methodname = 'GBT'
-        methodcolors[methodname] = palette[plot_num]
-        m = GradientBoostingClassifier(n_jobs=njobs, random_state=seed)
-        cv_results = cross_validate(m, X_train, y_train, cv=fold_it, scoring='roc_auc')
-        m.fit(X_train, y_train)
-        preds = m.predict_proba(X_train)[:,1]
-        plot_classifier(y_train, preds, methodname, m, plot_num, fig, grid_length,
-                grid_width, palette[plot_num])
-        vals = cv_results['test_score']
-        for val in vals:
-            data['Method'].append(methodname)
-            data['AUC'].append(val)
-
-        plot_num = 3
-        methodname = 'DT'
-        methodcolors[methodname] = palette[plot_num]
-        m = DecisionTreeClassifier(n_jobs=njobs, random_state=seed)
-        cv_results = cross_validate(m, X_train, y_train, cv=fold_it, scoring='roc_auc')
-        m.fit(X_train, y_train)
-        preds = m.predict_proba(X_train)[:,1]
-        plot_classifier(y_train, preds, methodname, m, plot_num, fig, grid_length,
-                grid_width, palette[plot_num])
-        vals = cv_results['test_score']
-        for val in vals:
-            data['Method'].append(methodname)
-            data['AUC'].append(val)
-
-        plot_num = 4
-        methodname = 'RF'
-        methodcolors[methodname] = palette[plot_num]
-        m = RandomForestClassifier(random_state=seed, n_jobs=njobs, class_weight='balanced_subsample')
-        cv_results = cross_validate(m, X_train, y_train, cv=fold_it, scoring='roc_auc')
-        m.fit(X_train, y_train)
-        preds = m.predict_proba(X_train)[:,1]
-        plot_classifier(y_train, preds, methodname, m, plot_num, fig, grid_length,
-                grid_width, palette[plot_num])
-        vals = cv_results['test_score']
-        for val in vals:
-            data['Method'].append(methodname)
-            data['AUC'].append(val)
+        for plot_num,model in enumerate(classifiers):
+            color = palette[plot_num]
+            methodname = methodnames[model]
+            fit_output = do_fit(model, X_train, y_train, fold_it)
+            plot_classifier(y_train, preds, methodname, fig, grid_length,
+                    grid_width, palette[plot_num])
+            vals = fit_output.test_scores
+            for val in vals:
+                data['Method'].append(methodname)
+                data['AUC'].append(val)
 
         fig.savefig('CV_classifier_fit_severalmodels.pdf')
         df = pd.DataFrame(data)
@@ -696,180 +695,21 @@ def fit_all_models(X_train, y_train, fold_it=[], njobs=1, seed=42, classifier=Fa
         box_fig.savefig('auc_boxplot_severalmodels.pdf')
     # plot jointplots of preds vs actual, and boxplots of the fold R values
     else:
-        def pearsonfunc(y_true, y_pred):
-            return pearsonr(y_true, y_pred)[0]
-        pearsonscore = make_scorer(pearsonfunc)
         data['R'] = []
+        summarystr = ''
 
-        plot_num = 0
-        methodname = 'Lasso'
-        methodcolors[methodname] = palette[plot_num]
-        m = Lasso()
-        cv_results = cross_validate(m, X_train, y_train, cv=fold_it,
-                scoring=pearsonscore)
-        preds = []
-        true = []
-        for (train_indices,test_indices) in fold_it:
-            this_xtrain = X_train.take(train_indices,axis=0)
-            this_ytrain = y_train.take(train_indices,axis=0)
-            this_xtest = X_train.take(test_indices,axis=0)
-            m.fit(this_xtrain, this_ytrain)
-            preds += m.predict(this_xtest).tolist()
-            true += y_train.take(test_indices,axis=0).tolist()
-        R = pearsonr(true, preds)[0]
-        rmse = np.sqrt(np.mean(np.square(true - preds)))
-        print('%s R=%0.3f, RMSE=%0.3f' %(methodname, R, rmse))
-        plot_regressor(true, preds, methodname, palette[plot_num])
-        vals = cv_results['test_score']
-        for val in vals:
-            data['Method'].append(methodname)
-            data['R'].append(val)
-        
-        plot_num = 1
-        methodname = 'KNN'
-        methodcolors[methodname] = palette[plot_num]
-        m = KNeighborsRegressor(n_jobs=njobs)
-        cv_results = cross_validate(m, X_train, y_train, cv=fold_it,
-                scoring=pearsonscore)
-        preds = []
-        true = []
-        for (train_indices,test_indices) in fold_it:
-            this_xtrain = X_train.take(train_indices,axis=0)
-            this_ytrain = y_train.take(train_indices,axis=0)
-            this_xtest = X_train.take(test_indices,axis=0)
-            m.fit(this_xtrain, this_ytrain)
-            preds += m.predict(this_xtest).tolist()
-            true += y_train.take(test_indices,axis=0).tolist()
-        R = pearsonr(true, preds)[0]
-        rmse = np.sqrt(np.mean(np.square(true - preds)))
-        print('%s R=%0.3f, RMSE=%0.3f' %(methodname, R, rmse))
-        plot_regressor(true, preds, methodname, palette[plot_num])
-        vals = cv_results['test_score']
-        for val in vals:
-            data['Method'].append(methodname)
-            data['R'].append(val)
-        
-        plot_num = 2
-        methodname = 'SVM'
-        methodcolors[methodname] = palette[plot_num]
-        m = SVR()
-        cv_results = cross_validate(m, X_train, y_train, cv=fold_it,
-                scoring=pearsonscore)
-        preds = []
-        true = []
-        for (train_indices,test_indices) in fold_it:
-            this_xtrain = X_train.take(train_indices,axis=0)
-            this_ytrain = y_train.take(train_indices,axis=0)
-            this_xtest = X_train.take(test_indices,axis=0)
-            m.fit(this_xtrain, this_ytrain)
-            preds += m.predict(this_xtest).tolist()
-            true += y_train.take(test_indices,axis=0).tolist()
-        R = pearsonr(true, preds)[0]
-        rmse = np.sqrt(np.mean(np.square(true - preds)))
-        print('%s R=%0.3f, RMSE=%0.3f' %(methodname, R, rmse))
-        plot_regressor(true, preds, methodname, palette[plot_num])
-        vals = cv_results['test_score']
-        for val in vals:
-            data['Method'].append(methodname)
-            data['R'].append(val)
-       
-        plot_num = 3
-        methodname = 'GBT'
-        methodcolors[methodname] = palette[plot_num]
-        m = GradientBoostingRegressor(random_state=seed)
-        cv_results = cross_validate(m, X_train, y_train, cv=fold_it,
-                scoring=pearsonscore)
-        preds = []
-        true = []
-        for (train_indices,test_indices) in fold_it:
-            this_xtrain = X_train.take(train_indices,axis=0)
-            this_ytrain = y_train.take(train_indices,axis=0)
-            this_xtest = X_train.take(test_indices,axis=0)
-            m.fit(this_xtrain, this_ytrain)
-            preds += m.predict(this_xtest).tolist()
-            true += y_train.take(test_indices,axis=0).tolist()
-        R = pearsonr(true, preds)[0]
-        rmse = np.sqrt(np.mean(np.square(true - preds)))
-        print('%s R=%0.3f, RMSE=%0.3f' %(methodname, R, rmse))
-        plot_regressor(true, preds, methodname, palette[plot_num])
-        vals = cv_results['test_score']
-        for val in vals:
-            data['Method'].append(methodname)
-            data['R'].append(val)
-        
-        plot_num = 4
-        methodname = 'DT'
-        methodcolors[methodname] = palette[plot_num]
-        m = DecisionTreeRegressor(random_state=seed)
-        cv_results = cross_validate(m, X_train, y_train, cv=fold_it,
-                scoring=pearsonscore)
-        preds = []
-        true = []
-        for (train_indices,test_indices) in fold_it:
-            this_xtrain = X_train.take(train_indices,axis=0)
-            this_ytrain = y_train.take(train_indices,axis=0)
-            this_xtest = X_train.take(test_indices,axis=0)
-            m.fit(this_xtrain, this_ytrain)
-            preds += m.predict(this_xtest).tolist()
-            true += y_train.take(test_indices,axis=0).tolist()
-        R = pearsonr(true, preds)[0]
-        rmse = np.sqrt(np.mean(np.square(true - preds)))
-        print('%s R=%0.3f, RMSE=%0.3f' %(methodname, R, rmse))
-        plot_regressor(true, preds, methodname, palette[plot_num])
-        vals = cv_results['test_score']
-        for val in vals:
-            data['Method'].append(methodname)
-            data['R'].append(val)
-        
-        plot_num = 5
-        methodname = 'RF'
-        methodcolors[methodname] = palette[plot_num]
-        m = RandomForestRegressor(random_state=seed, n_jobs=njobs)
-        cv_results = cross_validate(m, X_train, y_train, cv=fold_it,
-                scoring=pearsonscore)
-        preds = []
-        true = []
-        for (train_indices,test_indices) in fold_it:
-            this_xtrain = X_train.take(train_indices,axis=0)
-            this_ytrain = y_train.take(train_indices,axis=0)
-            this_xtest = X_train.take(test_indices,axis=0)
-            m.fit(this_xtrain, this_ytrain)
-            preds += m.predict(this_xtest).tolist()
-            true += y_train.take(test_indices,axis=0).tolist()
-        R = pearsonr(true, preds)[0]
-        rmse = np.sqrt(np.mean(np.square(true - preds)))
-        print('%s R=%0.3f, RMSE=%0.3f' %(methodname, R, rmse))
-        plot_regressor(true, preds, methodname, palette[plot_num])
-        vals = cv_results['test_score']
-        for val in vals:
-            data['Method'].append(methodname)
-            data['R'].append(val)
-
-        plot_num = 6
-        methodname = 'RF-opt'
-        methodcolors[methodname] = palette[plot_num]
-        params = {'min_samples_split': 0.1,
-                'n_estimators': 200, 'min_samples_leaf': 1, 'max_features': 0.5}
-        m = RandomForestRegressor(random_state=seed, n_jobs=njobs, **params)
-        cv_results = cross_validate(m, X_train, y_train, cv=fold_it,
-                scoring=pearsonscore)
-        preds = []
-        true = []
-        for (train_indices,test_indices) in fold_it:
-            this_xtrain = X_train.take(train_indices,axis=0)
-            this_ytrain = y_train.take(train_indices,axis=0)
-            this_xtest = X_train.take(test_indices,axis=0)
-            m.fit(this_xtrain, this_ytrain)
-            preds += m.predict(this_xtest).tolist()
-            true += y_train.take(test_indices,axis=0).tolist()
-        R = pearsonr(true, preds)[0]
-        rmse = np.sqrt(np.mean(np.square(true - preds)))
-        print('%s R=%0.3f, RMSE=%0.3f' %(methodname, R, rmse))
-        plot_regressor(true, preds, methodname, palette[plot_num])
-        vals = cv_results['test_score']
-        for val in vals:
-            data['Method'].append(methodname)
-            data['R'].append(val)
+        for plot_num,model in enumerate(regressors):
+            color = palette[plot_num]
+            methodname = methodnames[model]
+            fit_output = do_fit(model, X_train, y_train, fold_it)
+    	    plot_regressor(true, preds, methodname, palette[plot_num])
+            R = pearsonr(true, preds)[0]
+            rmse = np.sqrt(np.mean(np.square(true - preds)))
+            summarystr += '\n%s R=%0.3f, RMSE=%0.3f' %(methodname, R, rmse)
+            vals = fit_output.test_scores
+            for val in vals:
+                data['Method'].append(methodname)
+                data['R'].append(val)
 
    # now for the boxplots with dots for each fold
         df = pd.DataFrame(data)
@@ -882,6 +722,7 @@ def fit_all_models(X_train, y_train, fold_it=[], njobs=1, seed=42, classifier=Fa
         sns.boxplot(x='Method', y='R', data=df, 
                 color='white', ax=box_ax)
         box_fig.savefig('pearsonr_boxplot_severalmodels.pdf')
+        print(summarystr)
     return 
 
 # use sklearn to cross validate, train, and optimize hyperparameters 
