@@ -52,11 +52,14 @@ classifiers = (KNeighborsClassifier, SVC, GradientBoostingClassifier, DecisionTr
                RandomForestClassifier)
 regressors = (Lasso, KNeighborsRegressor, SVR, GradientBoostingRegressor, DecisionTreeRegressor, 
                RandomForestRegressor)
-methodnames = {KNeighborsClassifier = 'KNN', SVC = 'SVM', GradientBoostingClassifier = 'GBT', 
-               DecisionTreeClassifier = 'DT', RandomForestClassifier = 'RF', 
-               Lasso = 'Lasso', KNeighborsRegressor = 'KNN', SVR = 'SVM', 
-               GradientBoostingRegressor = 'GBT', DecisionTreeRegressor='DT', 
-               RandomForestRegressor = 'RF'
+noparams = (Lasso, KNeighborsRegressor, KNeighborsClassifier, SVR, SVC)
+seedonly = (GradientBoostingRegressor, DecisionTreeRegressor, GradientBoostingClassifier, 
+            DecisionTreeClassifier)
+methodnames = {KNeighborsClassifier: 'KNN', SVC: 'SVM', GradientBoostingClassifier: 'GBT', 
+               DecisionTreeClassifier: 'DT', RandomForestClassifier: 'RF', 
+               Lasso: 'Lasso', KNeighborsRegressor: 'KNN', SVR: 'SVM', 
+               GradientBoostingRegressor: 'GBT', DecisionTreeRegressor: 'DT', 
+               RandomForestRegressor: 'RF'
               }
 
 def unique_list(seq):
@@ -74,8 +77,8 @@ def exclusive_scan(iterable):
     total = 0
     yield total
     for value in iterable:
-    	total += value
-    	yield total 
+        total += value
+        yield total 
 
 def find_and_parse_folds(prefix, foldnums='', columns='Label,Affinity,Recfile,Ligfile', use_all=False):
     '''
@@ -179,9 +182,9 @@ def find_and_parse_folds(prefix, foldnums='', columns='Label,Affinity,Recfile,Li
     allcols = df.columns
     ycols = []
     if use_all:
-    	for col in allcols:
-    	    if is_numeric_dtype(df[col]):
-    	        ycols.append(col)
+        for col in allcols:
+            if is_numeric_dtype(df[col]):
+                ycols.append(col)
     else:
         if 'Affinity' in allcols:
             ycols = ['Affinity']
@@ -268,45 +271,45 @@ def get_muv_descriptors(mol):
     atom_counts = pd.DataFrame(type_list, columns=['type']).groupby('type').size().to_dict()
 
     if 5 in atom_counts:
-    	muv_descriptors.append(atom_counts[5])  # boron
+        muv_descriptors.append(atom_counts[5])  # boron
     else:
-    	muv_descriptors.append(0)
+        muv_descriptors.append(0)
     if 35 in atom_counts:
-    	muv_descriptors.append(atom_counts[35]) # bromine
+        muv_descriptors.append(atom_counts[35]) # bromine
     else:
-    	muv_descriptors.append(0)
+        muv_descriptors.append(0)
     if 6 in atom_counts:
-    	muv_descriptors.append(atom_counts[6])  # carbon
+        muv_descriptors.append(atom_counts[6])  # carbon
     else:
-    	muv_descriptors.append(0)
+        muv_descriptors.append(0)
     if 17 in atom_counts:
-    	muv_descriptors.append(atom_counts[17]) # chlorine
+        muv_descriptors.append(atom_counts[17]) # chlorine
     else:
-    	muv_descriptors.append(0)
+        muv_descriptors.append(0)
     if 9 in atom_counts:
-    	muv_descriptors.append(atom_counts[9])  # fluorine
+        muv_descriptors.append(atom_counts[9])  # fluorine
     else:
-    	muv_descriptors.append(0)
+        muv_descriptors.append(0)
     if 53 in atom_counts:
-    	muv_descriptors.append(atom_counts[53]) # iodine
+        muv_descriptors.append(atom_counts[53]) # iodine
     else:
-    	muv_descriptors.append(0)
+        muv_descriptors.append(0)
     if 7 in atom_counts:
-    	muv_descriptors.append(atom_counts[7])  # nitrogen
+        muv_descriptors.append(atom_counts[7])  # nitrogen
     else:
-    	muv_descriptors.append(0)
+        muv_descriptors.append(0)
     if 8 in atom_counts:
-    	muv_descriptors.append(atom_counts[8])  # oxygen
+        muv_descriptors.append(atom_counts[8])  # oxygen
     else:
-    	muv_descriptors.append(0)
+        muv_descriptors.append(0)
     if 15 in atom_counts:
-    	muv_descriptors.append(atom_counts[15]) # phosphorus
+        muv_descriptors.append(atom_counts[15]) # phosphorus
     else:
-    	muv_descriptors.append(0)
+        muv_descriptors.append(0)
     if 16 in atom_counts:
-    	muv_descriptors.append(atom_counts[16]) # sulfur
+        muv_descriptors.append(atom_counts[16]) # sulfur
     else:
-    	muv_descriptors.append(0)
+        muv_descriptors.append(0)
     
     # TODO: will this actually get them all?
     chiral_centers = Chem.FindMolChiralCenters(mol, includeUnassigned=True)
@@ -389,9 +392,9 @@ def generate_descriptors(mol_list, data_root=[], method='DUD-E', extra_descripto
             mols = [mol]
         elif ext == '.sdf':
             if gzipped:
-            	mols = Chem.ForwardSDMolSupplier(gzip.open(fullname))
+                mols = Chem.ForwardSDMolSupplier(gzip.open(fullname))
             else:
-            	mols = Chem.ForwardSDMolSupplier(fullname)
+                mols = Chem.ForwardSDMolSupplier(fullname)
             # detour here to get the molnames with sdsorter; if we don't have
             # SDFs or SMIs...sorry, you're on your own for names
             moltitles += (sdsorter['-print', '-omit-header', fullname] | awk['{print $2}'])().strip().split('\n')
@@ -610,7 +613,7 @@ def do_fit(estimator, X_train, y_train, fold_it=5):
         return pearsonr(y_true, y_pred)[0]
     pearsonscore = make_scorer(pearsonfunc)
 
-    if isinstance(estimator, classifiers):
+    if issubclass(estimator, classifiers):
         scoring = 'roc_auc'
         classifier = True
     else:
@@ -621,20 +624,27 @@ def do_fit(estimator, X_train, y_train, fold_it=5):
             scoring=scoring)
 
     if isinstance(fold_it, int):
-        y_pred = cross_val_predict(estimator, X_train, y_train, cv=fold_it method=’predict_proba’)[:,-1]
+        if classifier:
+            y_pred = cross_val_predict(estimator, X_train, y_train, cv=fold_it, method='predict_proba')[:,-1]
+        else:
+            y_pred = cross_val_predict(estimator, X_train, y_train, cv=fold_it)[:,-1]
+        y_true = y_train
     else:
-    	y_pred = []
-    	y_true = []
-    	for (train_indices,test_indices) in fold_it:
-    	    this_xtrain = X_train.take(train_indices,axis=0)
-    	    this_ytrain = y_train.take(train_indices,axis=0)
-    	    this_xtest = X_train.take(test_indices,axis=0)
-    	    estimator.fit(this_xtrain, this_ytrain)
-    	    y_pred += estimator.predict(this_xtest).tolist()
-    	    y_true += y_train.take(test_indices,axis=0).tolist()
-    	y_pred = np.array(preds)
-    	true = np.array(true)
-    return (cv_results['test_score'], y_pred, y_train)
+        y_pred = []
+        y_true = []
+        for (train_indices,test_indices) in fold_it:
+            this_xtrain = X_train.take(train_indices,axis=0)
+            this_ytrain = y_train.take(train_indices,axis=0)
+            this_xtest = X_train.take(test_indices,axis=0)
+            estimator.fit(this_xtrain, this_ytrain)
+            if classifier:
+                y_pred += estimator.predict_proba(this_xtest).tolist()
+            else:
+                y_pred += estimator.predict(this_xtest).tolist()
+            y_true += y_train.take(test_indices,axis=0).tolist()
+        y_pred = np.array(y_pred)
+        y_true = np.array(y_true)
+    return FitOutput(cv_results['test_score'], y_pred, y_true)
 
 def fit_all_models(X_train, y_train, fold_it=[], njobs=1, seed=42, classifier=False):
     '''
@@ -674,9 +684,18 @@ def fit_all_models(X_train, y_train, fold_it=[], njobs=1, seed=42, classifier=Fa
         for plot_num,model in enumerate(classifiers):
             color = palette[plot_num]
             methodname = methodnames[model]
-            fit_output = do_fit(model, X_train, y_train, fold_it)
+            methodcolors[methodname] = color
+            if issubclass(model, RandomForestClassifier):
+                estimator = model(random_state=seed, n_jobs=njobs, class_weight='balanced_subsample')
+            elif issubclass(model, noparams):
+                estimator = model()
+            elif issubclass(model, seedonly):
+                estimator = model(random_state=seed)
+            else:
+                estimator = model(n_jobs=njobs, random_state=seed)
+            fit_output = do_fit(estimator, X_train, y_train, fold_it)
             plot_classifier(y_train, preds, methodname, fig, grid_length,
-                    grid_width, palette[plot_num])
+                    grid_width, color)
             vals = fit_output.test_scores
             for val in vals:
                 data['Method'].append(methodname)
@@ -697,12 +716,22 @@ def fit_all_models(X_train, y_train, fold_it=[], njobs=1, seed=42, classifier=Fa
     else:
         data['R'] = []
         summarystr = ''
+        methodcolors = {}
 
         for plot_num,model in enumerate(regressors):
             color = palette[plot_num]
             methodname = methodnames[model]
-            fit_output = do_fit(model, X_train, y_train, fold_it)
-    	    plot_regressor(true, preds, methodname, palette[plot_num])
+            methodcolors[methodname] = color
+            if issubclass(model, noparams):
+                estimator = model()
+            elif issubclass(model, seedonly):
+                estimator = model(random_state=seed)
+            else:
+                estimator = model(n_jobs=njobs, random_state=seed)
+            fit_output = do_fit(estimator, X_train, y_train, fold_it)
+            true = fit_output.y_true
+            preds = fit_output.y_pred
+            plot_regressor(true, preds, methodname, color)
             R = pearsonr(true, preds)[0]
             rmse = np.sqrt(np.mean(np.square(true - preds)))
             summarystr += '\n%s R=%0.3f, RMSE=%0.3f' %(methodname, R, rmse)
