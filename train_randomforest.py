@@ -82,20 +82,20 @@ param_grids = {'RF':
               },
                'SVM':
               {'C': [0.25, 0.5, 0.75, 1.0],
-               'kernel': ['linear', 'poly', 'rbf', 'sigmoid'],
+               # 'kernel': ['linear', 'poly', 'rbf', 'sigmoid'],
                'gamma': ['scale', 'auto'],
                'epsilon': [0.025, 0.1, 0.2]
               },
-               'GBT':
-              {'n_estimators': [100, 200, 400, 750],
-               'loss': ['ls', 'lad', 'huber', 'quantile'],
+               'GBT': # sampling for this got slow with some indeterminate extra features including quantile loss
+              {'n_estimators': [100, 200, 400],
+               'loss': ['ls', 'lad', 'huber'],
                'learning_rate': [0.01, 0.1, 0.25],
-               'subsample': [0.1, 0.25, 0.5, 0.75, 1.0], 
-               'min_samples_split': [0.1, 0.25, 0.5, 1.0, 2, 5],
-               'min_samples_leaf': [0.1, 0.25, 0.5, 1],
-               'max_depth': list(range(1,15)), 
-               'max_features': ['auto', 'sqrt', 'log2', None], 
-               'alpha': [0.8, 0.9, 0.95]
+               'subsample': [0.5, 0.75, 1.0], 
+               # 'min_samples_split': [0.1, 0.25, 0.5, 1.0, 2, 5],
+               # 'min_samples_leaf': [0.1, 0.25, 0.5, 1],
+               'max_depth': [3, 6, 10], # the docs specifically advocate for tuning this one
+               'max_features': ['auto', 'sqrt', 'log2', 0.4, 0.6, 0.8], 
+               # 'alpha': [0.8, 0.9, 0.95]
               },
                'DT':
               {'min_samples_leaf': [0.1, 0.25, 0.5, 1],
@@ -961,10 +961,10 @@ if __name__=='__main__':
             help='Use all numerical columns in types file with RFRegressor. '
             'Default is to use only affinity if available, label if it is not')
     parser.add_argument('-f', '--fit_all', action='store_true', 
-            help='Fit all available models with default parameters: Lasso, KNN, '
+            help='Fit all available models with default or user-provided parameters: Lasso, KNN, '
             'SVM, RF, GBT, DT')
     parser.add_argument('-j', '--just_fit', action='store_true',
-            help='Just fit using reasonable settings, no hyperparameter sampling')
+            help='Just fit a RF using reasonable settings, no hyperparameter sampling')
     parser.add_argument('-nc', '--ncpus', type=int, default=1, 
             help='Number of processes to launch for model fitting; default=1')
     parser.add_argument('-b', '--use_babel', action='store_true', 
@@ -1045,10 +1045,19 @@ if __name__=='__main__':
             paramdicts[mname] = params[i]
     # TODO: clean up these options, things changed at the end of last week
     if args.just_fit:
+        # TODO: use default params instead? probably add an option...
+        params = {'min_samples_split': 0.1,
+                'n_estimators': 200, 'min_samples_leaf': 1, 'max_features': 0.5}
+        print('Since --just_fit was passed, doing a single fit with params %s' %str(params))
+        rf = fit_model(featurize_output.features, labels, params, args.ncpus, args.seed, classifier)
+        print("Mean accuracy: {:0.5f}".format(rf.score(featurize_output.features, labels)))
+        print('Dumping fit model for later\n')
+        dump(rf, '%s.joblib' %args.outprefix)
+    elif args.fit_all and args.hyperparms:
         if classifier:
             for model in classifiers:
                 methodname = methodnames[model]
-                print('Since --just_fit was passed, doing a single fit of $s with params %s' %str(methodname,params))
+                print('Doing a single fit of $s with params %s' %str(methodname,params))
                 params = paramdict[mname] if mname in params else {}
                 if issubclass(model, RandomForestClassifier):
                     estimator = model(random_state=args.seed, class_weight='balanced_subsample', **params)
@@ -1063,7 +1072,7 @@ if __name__=='__main__':
                     dump(outm, '%s_%s.joblib' %(modelname, args.outprefix))
             for model in regressors:
                 methodname = methodnames[model]
-                print('Since --just_fit was passed, doing a single fit of $s with params %s' %str(methodname,params))
+                print('Doing a single fit of $s with params %s' %str(methodname,params))
                 params = paramdict[mname] if mname in params else {}
                 if issubclass(model, no_init_params):
                     estimator = model(**params)
