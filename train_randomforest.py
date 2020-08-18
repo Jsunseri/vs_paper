@@ -1,5 +1,5 @@
 #!/bin/env python
-import sys,os,re,glob,gzip,math
+import sys,os,re,glob,gzip,math,json
 from argparse import ArgumentParser
 from collections import namedtuple
 from joblib import load,dump
@@ -52,11 +52,15 @@ FitOutput = namedtuple('FitOutput', ['test_scores', 'y_pred', 'y_true'])
 
 classifiers = (KNeighborsClassifier, DecisionTreeClassifier, 
                RandomForestClassifier, SVC, GradientBoostingClassifier)
+
 regressors = (Lasso, KNeighborsRegressor, DecisionTreeRegressor, 
                RandomForestRegressor, SVR, GradientBoostingRegressor)
+
 no_init_params = (Lasso, KNeighborsRegressor, KNeighborsClassifier, SVR, SVC)
+
 seedonly = (GradientBoostingRegressor, DecisionTreeRegressor, GradientBoostingClassifier, 
             DecisionTreeClassifier)
+
 methodnames = {KNeighborsClassifier: 'KNN', SVC: 'SVM', GradientBoostingClassifier: 'GBT', 
                DecisionTreeClassifier: 'DT', RandomForestClassifier: 'RF', 
                Lasso: 'Lasso', KNeighborsRegressor: 'KNN', SVR: 'SVM', 
@@ -87,7 +91,7 @@ param_grids = {'RF':
                'loss': ['ls', 'lad', 'huber', 'quantile'],
                'learning_rate': [0.01, 0.1, 0.25],
                'subsample': [0.1, 0.25, 0.5, 0.75, 1.0], 
-               'min_samples_split': [0.1, 0.25, 0.5, 2.0],
+               'min_samples_split': [0.1, 0.25, 0.5, 1.0, 2, 5],
                'min_samples_leaf': [0.1, 0.25, 0.5, 1],
                'max_depth': list(range(1,15)), 
                'max_features': ['auto', 'sqrt', 'log2', None], 
@@ -969,6 +973,9 @@ if __name__=='__main__':
             help='Output prefix for trained random forest pickle and train/test figs')
     parser.add_argument('--dump', action='store_true',
             help='Dump best model after fit/optimization.')
+    parser.add_argument('--hyperparms', type=str, default='',
+            help='Provide input json file specifying hyperparameter values for specific models;'
+            'must specify "modelname":str and "params":dict')
     args = parser.parse_args()
 
     # for now
@@ -1030,19 +1037,47 @@ if __name__=='__main__':
         dump((FoldData([], labels, fold_it), FeaturizeOutput(featurize_output.features, [], [])), 
                 '%sdescriptors.joblib' %args.outprefix)
 
+    if args.hyperparms:
+        hyperparms = json.load(open(args.hyperparms))
+        available_methods = [elem['modelname'] for elem in hyperparms]
+        params = [elem['params'] for elem in hyperparms]
+        for i,mname in enumerate(available_methods):
+            paramdicts[mname] = params[i]
+    # TODO: clean up these options, things changed at the end of last week
     if args.just_fit:
-        # TODO: use default params instead? probably add an option...
-        params = {'min_samples_split': 0.1,
-                'n_estimators': 200, 'min_samples_leaf': 1, 'max_features': 0.5}
-        print('Since --just_fit was passed, doing a single fit with params %s' %str(params))
-        rf = fit_model(featurize_output.features, labels, params, args.ncpus, args.seed, classifier)
-        print("Mean accuracy: {:0.5f}".format(rf.score(featurize_output.features, labels)))
-        print('Dumping fit model for later\n')
-        dump(rf, '%s.joblib' %args.outprefix)
+        if classifier:
+            for model in classifiers:
+                methodname = methodnames[model]
+                print('Since --just_fit was passed, doing a single fit of $s with params %s' %str(methodname,params))
+                params = paramdict[mname] if mname in params else {}
+                if issubclass(model, RandomForestClassifier):
+                    estimator = model(random_state=args.seed, class_weight='balanced_subsample', **params)
+                elif issubclass(model, no_init_params):
+                    estimator = model(**params)
+                else:
+                    estimator = model(random_state=args.seed, **params)
+                outm = estimator.fit(featurize_output.features, labels)
+                print("{} mean accuracy: {:0.5f}".format(methodname, outm.score(featurize_output.features, labels)))
+                if args.dump:
+                    print('Dumping fit model for later\n')
+                    dump(outm, '%s_%s.joblib' %(modelname, args.outprefix))
+            for model in regressors:
+                methodname = methodnames[model]
+                print('Since --just_fit was passed, doing a single fit of $s with params %s' %str(methodname,params))
+                params = paramdict[mname] if mname in params else {}
+                if issubclass(model, no_init_params):
+                    estimator = model(**params)
+                else:
+                    estimator = model(random_state=args.seed, **params)
+                outm = estimator.fit(featurize_output.features, labels)
+                print("{} R^2: {:0.5f}".format(methodname, outm.score(featurize_output.features, labels)))
+                if args.dump:
+                    print('Dumping fit model for later\n')
+                    dump(outm, '%s_%s.joblib' %(modelname, args.outprefix))
     elif args.fit_all:
         fit_all_models(featurize_output.features, labels, fold_it, args.ncpus, args.seed, classifier)
     else:
-        print('Fitting models\n')
+        print('Performing hyperparameter grid search for all models\n')
         if classifier:
             for model in classifiers:
                 methodname = methodnames[model]
