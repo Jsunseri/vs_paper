@@ -54,7 +54,7 @@ classifiers = (KNeighborsClassifier, SVC, GradientBoostingClassifier, DecisionTr
                RandomForestClassifier)
 regressors = (Lasso, KNeighborsRegressor, SVR, GradientBoostingRegressor, DecisionTreeRegressor, 
                RandomForestRegressor)
-noparams = (Lasso, KNeighborsRegressor, KNeighborsClassifier, SVR, SVC)
+no_init_params = (Lasso, KNeighborsRegressor, KNeighborsClassifier, SVR, SVC)
 seedonly = (GradientBoostingRegressor, DecisionTreeRegressor, GradientBoostingClassifier, 
             DecisionTreeClassifier)
 methodnames = {KNeighborsClassifier: 'KNN', SVC: 'SVM', GradientBoostingClassifier: 'GBT', 
@@ -63,6 +63,47 @@ methodnames = {KNeighborsClassifier: 'KNN', SVC: 'SVM', GradientBoostingClassifi
                GradientBoostingRegressor: 'GBT', DecisionTreeRegressor: 'DT', 
                RandomForestRegressor: 'RF'
               }
+
+# TODO: maybe too much? min_samples_split at least seems to just be the
+# best at 0.1, no real need to sample
+param_grids = {'RF': 
+              {'min_samples_split': [0.1, 0.25, 0.5, 1.0],
+              'min_samples_leaf': [0.1, 0.25, 0.5, 1],
+              'max_features': ['sqrt', 0.25, 0.5, 0.75, 1.0],
+              'n_estimators': [100, 200, 400, 750]
+              }, 
+               'KNN':
+              {'n_neighbors': list(range(1,30)), 
+               'p': [1,2]
+              },
+               'SVM':
+              {'kernel': ['linear', 'poly', 'rbf', 'sigmoid'],
+               'gamma': ['scale', 'auto'],
+               'C': [0.25, 0.5, 0.75, 1.0],
+               'epsilon': [0.025, 0.1, 0.2]
+              },
+               'GBT':
+              {'loss': ['ls', 'lad', 'huber', 'quantile'],
+               'learning_rate': [0.01, 0.1, 0.25],
+               'n_estimators': [100, 200, 400, 750],
+               'subsample': [0.1, 0.25, 0.5, 0.75, 1.0], 
+               'min_samples_split': [0.1, 0.25, 0.5, 2.0],
+               'min_samples_leaf': [0.1, 0.25, 0.5, 1],
+               'max_depth': list(range(1,15)), 
+               'max_features': ['auto', 'sqrt', 'log2', None], 
+               'alpha': [0.8, 0.9, 0.95]
+              },
+               'DT':
+              {'criterion': ['mse', 'friedman_mse', 'mae'],
+               'max_depth': [None, 3, 10],
+               'min_samples_leaf': [0.1, 0.25, 0.5, 1],
+               'max_features': ['auto', 'sqrt', 'log2', None]
+              },
+               'Lasso':
+              {'alpha': [0.5, 0.75, 1.0],
+               'normalize': [True, False], 
+              }
+}
 
 def unique_list(seq):
     '''
@@ -707,7 +748,7 @@ def fit_all_models(X_train, y_train, fold_it=[], njobs=1, seed=42, classifier=Fa
             methodcolors[methodname] = color
             if issubclass(model, RandomForestClassifier):
                 estimator = model(random_state=seed, n_jobs=njobs, class_weight='balanced_subsample')
-            elif issubclass(model, noparams):
+            elif issubclass(model, no_init_params):
                 estimator = model()
             elif issubclass(model, seedonly):
                 estimator = model(random_state=seed)
@@ -742,7 +783,7 @@ def fit_all_models(X_train, y_train, fold_it=[], njobs=1, seed=42, classifier=Fa
             color = palette[plot_num]
             methodname = methodnames[model]
             methodcolors[methodname] = color
-            if issubclass(model, noparams):
+            if issubclass(model, no_init_params):
                 estimator = model()
             elif issubclass(model, seedonly):
                 estimator = model(random_state=seed)
@@ -775,50 +816,42 @@ def fit_all_models(X_train, y_train, fold_it=[], njobs=1, seed=42, classifier=Fa
     return 
 
 # use sklearn to cross validate, train, and optimize hyperparameters 
-def fit_and_cross_validate_model(X_train, y_train, fold_it, param_grid, njobs=1, seed=42, classifier=False):
+def fit_and_cross_validate_model(estimator, X_train, y_train, param_grid, scoring, fold_it, n_jobs=-1):
     '''
     Parameters
     ----------
+    estimator: estimator object implementing ‘fit’ and ‘predict’
+        the object to use to fit the data
     X_train: array_like
         training examples
     y_train: array_like
         training labels
+    param_grid: dict
+        dictionary mapping hyperparams and values to define the grid search
+    scoring: str or array_like of str
+        how to score gridsearch outputs; if array_like, first will be used for refit
     fold_it: iterable
         iterable yielding fold indices; if None, just use the default CV
         strategy (currently 5-fold)
-    param_grid: dict
-        dictionary mapping hyperparams and values to define the grid search
-    njobs: int
-        number of sklearn jobs, corresponding to parallel processes during CV
-    seed: int
-        random seed to pass to Random Forest model
-    classifier: bool
-        whether to train a classifier instead of a regression model
 
     Returns
     ----------
-    model: object
-        fit model 
+    results: object
+        output of GridSearchCV
     '''
 
-    if classifier:
-        rf = RandomForestClassifier(random_state=seed,
-                class_weight='balanced_subsample')
-        scorer = 'roc_auc'
-        refit = True
+    if not isinstance(scoring, str):
+        refit = scoring[0]
     else:
-        rf = RandomForestRegressor(random_state=seed)
-        scorer = ['r2', 'neg_mean_squared_error']
-        refit = 'r2'
-
-    # could pass njobs to RF instead, don't really want to do both because this
-    # would be surprising to the user i think
+        refit = scoring
     if fold_it:
-        grf = GridSearchCV(rf, param_grid, cv=fold_it, scoring=scorer, n_jobs=njobs, return_train_score=True, refit=refit)
+        out = GridSearchCV(estimator, param_grid, cv=fold_it, scoring=scoring, refit=refit, 
+                           n_jobs=n_jobs, return_train_score=True)
     else:
-        grf = GridSearchCV(rf, param_grid, scoring=scorer, n_jobs=njobs, return_train_score=True, refit=refit)
-    grf.fit(X_train, y_train)
-    return grf
+        out = GridSearchCV(estimator, param_grid, scoring=scoring, refit=refit, 
+                           n_jobs=n_jobs, return_train_score=True)
+    out.fit(X_train, y_train)
+    return out
 
 def plot_cv_results(results, gp1, gp2, classifier=False, figname='gridsearch_results.pdf'):
     '''
@@ -931,6 +964,8 @@ if __name__=='__main__':
             help='Use OpenBabel to read in molecules and generate descriptors (default is to use rdkit)')
     parser.add_argument('-o', '--outprefix', type=str, default='', 
             help='Output prefix for trained random forest pickle and train/test figs')
+    parser.add_argument('--dump', action='store_true',
+            help='Dump best model after fit/optimization.')
     args = parser.parse_args()
 
     # for now
@@ -1004,39 +1039,61 @@ if __name__=='__main__':
     elif args.fit_all:
         fit_all_models(featurize_output.features, labels, fold_it, args.ncpus, args.seed, classifier)
     else:
-        # TODO: maybe too much? min_samples_split at least seems to just be the
-        # best at 0.1, no real need to sample
-        param_grid = {
-            'min_samples_split': [0.1, 0.25, 0.5, 1.0],
-            'min_samples_leaf': [0.1, 0.25, 0.5, 1],
-            'max_features': ['sqrt', 0.25, 0.5, 0.75, 1.0],
-            'n_estimators': [100, 200, 400, 750]
-        }
-        print('Fitting model\n')
-        rf = fit_and_cross_validate_model(featurize_output.features, labels, fold_it, param_grid, 
-                args.ncpus, args.seed, classifier)
-        print("best parameters: {}".format(rf.best_params_))
-        if not classifier:
-            r2 = rf.cv_results_['mean_test_r2'][rf.best_index_]
-            r2_stdev = rf.cv_results_['std_test_r2'][rf.best_index_]
-            print("best R2: {:0.5f} (+/-{:0.5f})".format(r2, r2_stdev))
-            score = -rf.cv_results_['mean_test_neg_mean_squared_error'][rf.best_index_]
-            rf_stdev = rf.cv_results_['std_test_neg_mean_squared_error'][rf.best_index_]
-            scoretype = 'MSE'
+        print('Fitting models\n')
+        if classifier:
+            for model in classifiers:
+                methodname = methodnames[model]
+                scoring = 'roc_auc'
+                if issubclass(model, RandomForestClassifier):
+                    estimator = model(random_state=seed, class_weight='balanced_subsample')
+                elif issubclass(model, no_init_params):
+                    estimator = model()
+                else:
+                    estimator = model(random_state=seed)
+                param_grid = param_grids[methodname]
+                gridsearch_out = fit_and_cross_validate_model(estimator, featurize_output.features, labels, 
+                     param_grid, scoring, fold_it, args.ncpus)
+                print("{} best parameters: {}".format(methodname, gridsearch_out.best_params_))
+                score = gridsearch_out.best_score_
+                out_stdev = gridsearch_out.cv_results_['std_test_score'][gridsearch_out.best_index_]
+
+                print("best {}: {:0.5f} (+/-{:0.5f})".format('score', score, out_stdev))
+
+                params = list(param_grid.keys())
+                gp1 = params[0]
+                print('Plotting hyperparameter search results\n')
+                for gp2 in params[1:]:
+                    plot_cv_results(gridsearch_out.cv_results_, (gp1,param_grid[gp1]), (gp2,param_grid[gp2]), classifier, 
+                                    '%s_%s_%s_%s_gridsearch_results.pdf' %(args.outprefix,methodname,gp1,gp2))
         else:
-            score = rf.best_score_
-            rf_stdev = rf.cv_results_['std_test_score'][rf.best_index_]
-            scoretype = 'score'
-        print("best {}: {:0.5f} (+/-{:0.5f})".format(scoretype, score, rf_stdev))
+            for model in regressors:
+                methodname = methodnames[model]
+                scoring = ['r2', 'neg_mean_squared_error']
+                if issubclass(model, no_init_params):
+                    estimator = model()
+                else:
+                    estimator = model(random_state=seed)
+                param_grid = param_grids[methodname]
+                gridsearch_out = fit_and_cross_validate_model(estimator, featurize_output.features, labels, 
+                     param_grid, scoring, fold_it, args.ncpus)
+                print("{} best parameters: {}".format(methodname, gridsearch_out.best_params_))
+                r2 = gridsearch_out.cv_results_['mean_test_r2'][gridsearch_out.best_index_]
+                r2_stdev = gridsearch_out.cv_results_['std_test_r2'][gridsearch_out.best_index_]
+                print("best R2: {:0.5f} (+/-{:0.5f})".format(r2, r2_stdev))
+                score = -gridsearch_out.cv_results_['mean_test_neg_mean_squared_error'][gridsearch_out.best_index_]
+                out_stdev = gridsearch_out.cv_results_['std_test_neg_mean_squared_error'][gridsearch_out.best_index_]
+                print("best {}: {:0.5f} (+/-{:0.5f})".format('MSE', score, out_stdev))
 
-        if not args.outprefix:
-            args.outprefix = '%s_RF_%d' %(args.method, os.getpid())
-        print('Dumping best model for later\n')
-        dump(rf.best_estimator_, '%s.joblib' %args.outprefix)
+                params = list(param_grid.keys())
+                gp1 = params[0]
+                print('Plotting hyperparameter search results\n')
+                for gp2 in params[1:]:
+                    plot_cv_results(gridsearch_out.cv_results_, (gp1,param_grid[gp1]), (gp2,param_grid[gp2]), classifier, 
+                                    '%s_%s_%s_%s_gridsearch_results.pdf' %(args.outprefix,methodname,gp1,gp2))
 
-        params = list(param_grid.keys())
-        gp1 = params[0]
-        print('Plotting hyperparameter search results\n')
-        for gp2 in params[1:]:
-            plot_cv_results(rf.cv_results_, (gp1,param_grid[gp1]), (gp2,param_grid[gp2]), classifier, 
-                            '%s_%s_%s_gridsearch_results.pdf' %(args.outprefix,gp1,gp2))
+        if args.dump:
+            if not args.outprefix:
+                args.outprefix = '%s_RF_%d' %(args.method, os.getpid())
+            print('Dumping best model for later\n')
+            dump(gridsearch_out.best_estimator_, '%s.joblib' %args.outprefix)
+
