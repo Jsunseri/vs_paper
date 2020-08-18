@@ -367,7 +367,8 @@ def get_muv_descriptors(mol):
 
 # we generate descriptors with rdkit and give the user the option of using the
 # DUD-E or MUV descriptors
-def generate_descriptors(mol_list, data_root=[], method='DUD-E', use_babel=False, extra_descriptors=None):
+def generate_descriptors(mol_list, data_root=[], method='DUD-E', use_babel=False, extra_descriptors=None,
+                         take_first=False):
     '''
     Parameters
     ----------
@@ -383,6 +384,8 @@ def generate_descriptors(mol_list, data_root=[], method='DUD-E', use_babel=False
         parse files and generate descriptors with babel instead of rdkit
     extra_descriptors: array_like, optional
         N_mols X N_descs array of additional user-provided descriptors
+    take_first: bool
+        take first mol from multi-model file
 
     Returns
     ----------
@@ -426,6 +429,7 @@ def generate_descriptors(mol_list, data_root=[], method='DUD-E', use_babel=False
         else:
             fullname = molname
         if use_babel:
+            # FIXME: if the file is empty, no error is thrown but we just proceed, not accounting for that file
             for i,mol in enumerate(pybel.readfile(ext.split('.')[-1], fullname)):
                 if mol is not None:
                     desc = mol.calcdesc()
@@ -439,6 +443,8 @@ def generate_descriptors(mol_list, data_root=[], method='DUD-E', use_babel=False
                     print('Problem with molecule %d from file %s\n' %(i+1,molname))
                     failures.append(count)
                 count += 1
+                if take_first:
+                    break
             assert i+1 == expected_mols_per_file[molname], "Got %d mols from %s but expected %d" %(i+1,molname, expected_mols_per_file[molname])
         else:
           assert ext != '.gninatypes', "Sorry, no gninatypes support currently. "
@@ -494,12 +500,14 @@ def generate_descriptors(mol_list, data_root=[], method='DUD-E', use_babel=False
                       print('Unsupported molecular descriptor set %s\n' %method)
                       sys.exit()
               count += 1
+              if take_first:
+                  break
           assert i+1 == expected_mols_per_file[molname], "Got %d mols from %s but expected %d" %(i+1,molname, expected_mols_per_file[molname])
+
+    print('%d mols successfully parsed, %d failures\n' %(len(features), len(failures)))
 
     assert count == len(mol_list), "Saw %d mols but expected %d" %(count, len(mol_list))
     
-    print('%d mols successfully parsed, %d failures\n' %(len(features), len(failures)))
-
     features = np.asarray(features)
     return FeaturizeOutput(features, failures, moltitles)
 
@@ -526,9 +534,7 @@ def delete_failure_indices_from_folds(failures, labels, fold_it):
     labels = np.delete(labels, failures, axis=0)
  
     # also delete them from the iterable defining the folds, if it is populated
-    # that iterable is actually a bunch of lists of indices;
-    # each index will appear in two train fold lists and one test fold, 
-    # and we can figure out which
+    # that iterable is actually a bunch of lists of indices
     if fold_it:
         test_sizes = [len(ttup[1]) for ttup in fold_it]
         start_indices = [part_sum for part_sum in exclusive_scan(size for size in test_sizes)]
@@ -538,6 +544,7 @@ def delete_failure_indices_from_folds(failures, labels, fold_it):
         # the failures were removed from X/y, so we just need to 
         # figure out how many failures map to each fold and 
         # slice the list to chop off the cumulative number of failures
+        # (the indices in the iterable are ordered, could sort if you're worried)
         for failed in failures:
             fold = -1
             for i,start in enumerate(start_indices[1:]):
@@ -711,7 +718,7 @@ def do_fit(estimator, X_train, y_train, fold_it=5):
         y_true = np.array(y_true)
     return FitOutput(cv_results['test_score'], y_pred, y_true)
 
-def fit_all_models(X_train, y_train, fold_it=[], njobs=1, seed=42, classifier=False):
+def fit_all_models(X_train, y_train, paramdict={}, fold_it=[], njobs=1, seed=42, classifier=False):
     '''
     Parameters
     ----------
@@ -719,6 +726,8 @@ def fit_all_models(X_train, y_train, fold_it=[], njobs=1, seed=42, classifier=Fa
         training examples
     y_train: array_like
         training labels
+    paramdict: map
+        map of method names to hyperparameter values
     fold_it: iterable
         iterable yielding fold indices
     njobs: int
@@ -750,12 +759,13 @@ def fit_all_models(X_train, y_train, fold_it=[], njobs=1, seed=42, classifier=Fa
             color = palette[plot_num]
             methodname = methodnames[model]
             methodcolors[methodname] = color
+            params = paramdict[methodname] if methodname in paramdict else {}
             if issubclass(model, RandomForestClassifier):
-                estimator = model(random_state=seed, n_jobs=njobs, class_weight='balanced_subsample')
+                estimator = model(random_state=seed, n_jobs=njobs, class_weight='balanced_subsample', **params)
             elif issubclass(model, no_init_params):
-                estimator = model()
+                estimator = model(**params)
             elif issubclass(model, seedonly):
-                estimator = model(random_state=seed)
+                estimator = model(random_state=seed, **params)
             else:
                 estimator = model(n_jobs=njobs, random_state=seed)
             fit_output = do_fit(estimator, X_train, y_train, fold_it)
@@ -787,12 +797,13 @@ def fit_all_models(X_train, y_train, fold_it=[], njobs=1, seed=42, classifier=Fa
             color = palette[plot_num]
             methodname = methodnames[model]
             methodcolors[methodname] = color
+            params = paramdict[methodname] if methodname in paramdict else {}
             if issubclass(model, no_init_params):
-                estimator = model()
+                estimator = model(**params)
             elif issubclass(model, seedonly):
-                estimator = model(random_state=seed)
+                estimator = model(random_state=seed, **params)
             else:
-                estimator = model(n_jobs=njobs, random_state=seed)
+                estimator = model(n_jobs=njobs, random_state=seed, **params)
             fit_output = do_fit(estimator, X_train, y_train, fold_it)
             true = fit_output.y_true
             preds = fit_output.y_pred
@@ -969,6 +980,8 @@ if __name__=='__main__':
             help='Number of processes to launch for model fitting; default=1')
     parser.add_argument('-b', '--use_babel', action='store_true', 
             help='Use OpenBabel to read in molecules and generate descriptors (default is to use rdkit)')
+    parser.add_argument('-t', '--take_first', action='store_true',
+            help='Take first mol from multi-model files.')
     parser.add_argument('-o', '--outprefix', type=str, default='', 
             help='Output prefix for trained random forest pickle and train/test figs')
     parser.add_argument('--dump', action='store_true',
@@ -1011,7 +1024,7 @@ if __name__=='__main__':
         # TODO: multiprocess this? would need to rewrite how fold iteratable is made
         print('Generating descriptors...\n')
         featurize_output = generate_descriptors(fold_data.fnames, args.data_root,
-                args.method, args.use_babel, extra_descs)
+                args.method, args.use_babel, extra_descs, args.take_first)
    
     if featurize_output.failures: 
         print('Removing failed examples\n')
@@ -1037,28 +1050,20 @@ if __name__=='__main__':
         dump((FoldData([], labels, fold_it), FeaturizeOutput(featurize_output.features, [], [])), 
                 '%sdescriptors.joblib' %args.outprefix)
 
+    paramdict = {}
     if args.hyperparms:
         hyperparms = json.load(open(args.hyperparms))
         available_methods = [elem['modelname'] for elem in hyperparms]
         params = [elem['params'] for elem in hyperparms]
         for i,mname in enumerate(available_methods):
-            paramdicts[mname] = params[i]
+            paramdict[mname] = params[i]
     # TODO: clean up these options, things changed at the end of last week
     if args.just_fit:
-        # TODO: use default params instead? probably add an option...
-        params = {'min_samples_split': 0.1,
-                'n_estimators': 200, 'min_samples_leaf': 1, 'max_features': 0.5}
-        print('Since --just_fit was passed, doing a single fit with params %s' %str(params))
-        rf = fit_model(featurize_output.features, labels, params, args.ncpus, args.seed, classifier)
-        print("Mean accuracy: {:0.5f}".format(rf.score(featurize_output.features, labels)))
-        print('Dumping fit model for later\n')
-        dump(rf, '%s.joblib' %args.outprefix)
-    elif args.fit_all and args.hyperparms:
         if classifier:
             for model in classifiers:
                 methodname = methodnames[model]
-                print('Doing a single fit of $s with params %s' %str(methodname,params))
-                params = paramdict[mname] if mname in params else {}
+                print('Doing a single fit of %s with params %s' %(methodname,str(params)))
+                params = paramdict[methodname] if methodname in paramdict else {}
                 if issubclass(model, RandomForestClassifier):
                     estimator = model(random_state=args.seed, class_weight='balanced_subsample', **params)
                 elif issubclass(model, no_init_params):
@@ -1070,10 +1075,11 @@ if __name__=='__main__':
                 if args.dump:
                     print('Dumping fit model for later\n')
                     dump(outm, '%s_%s.joblib' %(modelname, args.outprefix))
+        else:
             for model in regressors:
                 methodname = methodnames[model]
-                print('Doing a single fit of $s with params %s' %str(methodname,params))
-                params = paramdict[mname] if mname in params else {}
+                params = paramdict[methodname] if methodname in paramdict else {}
+                print('Doing a single fit of %s with params %s' %(methodname,str(params)))
                 if issubclass(model, no_init_params):
                     estimator = model(**params)
                 else:
@@ -1084,7 +1090,7 @@ if __name__=='__main__':
                     print('Dumping fit model for later\n')
                     dump(outm, '%s_%s.joblib' %(modelname, args.outprefix))
     elif args.fit_all:
-        fit_all_models(featurize_output.features, labels, fold_it, args.ncpus, args.seed, classifier)
+        fit_all_models(featurize_output.features, labels, paramdict, fold_it, args.ncpus, args.seed, classifier)
     else:
         print('Performing hyperparameter grid search for all models\n')
         if classifier:
