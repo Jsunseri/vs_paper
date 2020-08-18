@@ -50,10 +50,10 @@ FeaturizeOutput = namedtuple('FeaturizeOutput', ['features', 'failures', 'moltit
 FixedOutput = namedtuple('FixedOutput', ['labels', 'fold_it'])
 FitOutput = namedtuple('FitOutput', ['test_scores', 'y_pred', 'y_true'])
 
-classifiers = (KNeighborsClassifier, SVC, GradientBoostingClassifier, DecisionTreeClassifier, 
-               RandomForestClassifier)
-regressors = (Lasso, KNeighborsRegressor, SVR, GradientBoostingRegressor, DecisionTreeRegressor, 
-               RandomForestRegressor)
+classifiers = (KNeighborsClassifier, DecisionTreeClassifier, 
+               RandomForestClassifier, SVC, GradientBoostingClassifier)
+regressors = (Lasso, KNeighborsRegressor, DecisionTreeRegressor, 
+               RandomForestRegressor, SVR, GradientBoostingRegressor)
 no_init_params = (Lasso, KNeighborsRegressor, KNeighborsClassifier, SVR, SVC)
 seedonly = (GradientBoostingRegressor, DecisionTreeRegressor, GradientBoostingClassifier, 
             DecisionTreeClassifier)
@@ -77,15 +77,15 @@ param_grids = {'RF':
                'p': [1,2]
               },
                'SVM':
-              {'kernel': ['linear', 'poly', 'rbf', 'sigmoid'],
+              {'C': [0.25, 0.5, 0.75, 1.0],
+               'kernel': ['linear', 'poly', 'rbf', 'sigmoid'],
                'gamma': ['scale', 'auto'],
-               'C': [0.25, 0.5, 0.75, 1.0],
                'epsilon': [0.025, 0.1, 0.2]
               },
                'GBT':
-              {'loss': ['ls', 'lad', 'huber', 'quantile'],
+              {'n_estimators': [100, 200, 400, 750],
+               'loss': ['ls', 'lad', 'huber', 'quantile'],
                'learning_rate': [0.01, 0.1, 0.25],
-               'n_estimators': [100, 200, 400, 750],
                'subsample': [0.1, 0.25, 0.5, 0.75, 1.0], 
                'min_samples_split': [0.1, 0.25, 0.5, 2.0],
                'min_samples_leaf': [0.1, 0.25, 0.5, 1],
@@ -94,9 +94,9 @@ param_grids = {'RF':
                'alpha': [0.8, 0.9, 0.95]
               },
                'DT':
-              {'criterion': ['mse', 'friedman_mse', 'mae'],
+              {'min_samples_leaf': [0.1, 0.25, 0.5, 1],
+               'criterion': ['mse', 'friedman_mse', 'mae'],
                'max_depth': [None, 3, 10],
-               'min_samples_leaf': [0.1, 0.25, 0.5, 1],
                'max_features': ['auto', 'sqrt', 'log2', None]
               },
                'Lasso':
@@ -886,15 +886,18 @@ def plot_cv_results(results, gp1, gp2, classifier=False, figname='gridsearch_res
     if ncolors > len(palette):
         cmap = matplotlib.cm.get_cmap('Set3')
         palette = [cmap[val] for val in np.linspace(0, 1, ncolors)]
-   
+    
     df = pd.DataFrame(results) 
-    grouped = df.groupby(['param_%s' %gp1[0], 'param_%s' %gp2[0]], as_index=False)
-    plot_df = df.loc[grouped['mean_test_%s' %score_suffix].idxmax()]
+    grouped = df.replace({'param_%s' %gp2[0]: {None: -1}}).groupby(['param_%s' %gp1[0], 'param_%s' %gp2[0]], as_index=False)
+    plot_df = df.loc[grouped['mean_test_%s' %score_suffix].idxmax()].replace({'param_%s' %gp2[0]: {-1: None}})
     if not classifier and score_suffix == 'score' or score_suffix == 'neg_mean_squared_error':
         for sample in ['train', 'test']:
             plot_df['mean_%s_%s' %(sample, score_suffix)] = plot_df['mean_%s_%s' %(sample, score_suffix)].mul(-1)
     for i,param_val in enumerate(gp2[1]):
-        this_plot = plot_df.loc[plot_df['param_%s' %gp2[0]] == param_val]
+        if param_val is None:
+            this_plot = plot_df.loc[plot_df['param_%s' %gp2[0]].isnull()]
+        else:
+            this_plot = plot_df.loc[plot_df['param_%s' %gp2[0]] == param_val]
         color = palette[i]
         x = this_plot['param_%s' %gp1[0]].to_numpy(dtype=np.float32)
         for sample, style in (('train', '--'), ('test', '-')):
@@ -906,8 +909,8 @@ def plot_cv_results(results, gp1, gp2, classifier=False, figname='gridsearch_res
                             alpha=0.1 if sample == 'test' else 0, color=color)
             ax.plot(x, sample_score_mean, style, color=color,
                     alpha=1 if sample == 'test' else 0.7,
-                    label='%s: %s (%s)' % (gp2[0].replace('_','\_'), param_val, sample))
-   
+                    label='%s: %s (%s)' % (gp2[0].replace('_','\_'), str(param_val).replace('_','\_'), sample))
+  
         this_best = this_plot.loc[this_plot['rank_test_%s' % score_suffix].idxmin()]
         best_score = this_best['mean_test_%s' % score_suffix]
         best_x = this_best['param_%s' %gp1[0]]
@@ -1045,11 +1048,11 @@ if __name__=='__main__':
                 methodname = methodnames[model]
                 scoring = 'roc_auc'
                 if issubclass(model, RandomForestClassifier):
-                    estimator = model(random_state=seed, class_weight='balanced_subsample')
+                    estimator = model(random_state=args.seed, class_weight='balanced_subsample')
                 elif issubclass(model, no_init_params):
                     estimator = model()
                 else:
-                    estimator = model(random_state=seed)
+                    estimator = model(random_state=args.seed)
                 param_grid = param_grids[methodname]
                 gridsearch_out = fit_and_cross_validate_model(estimator, featurize_output.features, labels, 
                      param_grid, scoring, fold_it, args.ncpus)
@@ -1072,7 +1075,7 @@ if __name__=='__main__':
                 if issubclass(model, no_init_params):
                     estimator = model()
                 else:
-                    estimator = model(random_state=seed)
+                    estimator = model(random_state=args.seed)
                 param_grid = param_grids[methodname]
                 gridsearch_out = fit_and_cross_validate_model(estimator, featurize_output.features, labels, 
                      param_grid, scoring, fold_it, args.ncpus)
