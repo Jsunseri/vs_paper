@@ -748,6 +748,8 @@ def fit_all_models(X_train, y_train, paramdict={}, fold_it=[], njobs=1, seed=42,
     palette = sns.color_palette("hls", n_colors=8, desat=.5).as_hex()
     methodcolors = {}
     box_fig,box_ax = plt.subplots()
+    Rs = []
+    RMSEs = []
     # plot grid of ROC curves for fit and boxplot of AUCs for CV
     if classifier:
         data['AUC'] = []
@@ -810,6 +812,8 @@ def fit_all_models(X_train, y_train, paramdict={}, fold_it=[], njobs=1, seed=42,
             plot_regressor(true, preds, methodname, color)
             R = pearsonr(true, preds)[0]
             rmse = np.sqrt(np.mean(np.square(true - preds)))
+            Rs.append(R)
+            RMSEs.append(rmse)
             summarystr += '\n%s R=%0.3f, RMSE=%0.3f' %(methodname, R, rmse)
             vals = fit_output.test_scores
             for val in vals:
@@ -828,6 +832,8 @@ def fit_all_models(X_train, y_train, paramdict={}, fold_it=[], njobs=1, seed=42,
                 color='white', ax=box_ax)
         box_fig.savefig('pearsonr_boxplot_severalmodels.pdf')
         print(summarystr)
+        if not classifier:
+            print('Mean R: {}, Mean RMSE: {}'.format(sum(Rs)/len(Rs), sum(RMSEs)/len(RMSEs)))
     return 
 
 # use sklearn to cross validate, train, and optimize hyperparameters 

@@ -7,10 +7,25 @@ import pandas as pd
 from scipy.stats import pearsonr
 from sklearn.metrics import mean_squared_error
 from sklearn.metrics import roc_curve, roc_auc_score
+
+from sklearn.linear_model import Lasso
+
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.ensemble import RandomForestRegressor
 
-from train_randomforest import generate_descriptors, FeaturizeOutput
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.ensemble import GradientBoostingRegressor
+
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.tree import DecisionTreeRegressor
+
+from sklearn.svm import SVC
+from sklearn.svm import SVR
+
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.neighbors import KNeighborsRegressor
+
+from train_simpledescriptor_models import generate_descriptors, FeaturizeOutput, classifiers, regressors, methodnames
 
 if __name__ == '__main__':
     parser = ArgumentParser(description='Load trained random forest and '
