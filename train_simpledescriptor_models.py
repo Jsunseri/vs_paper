@@ -39,6 +39,7 @@ from rdkit.Chem import QED
 from rdkit.Chem import rdmolops
 from rdkit.Chem import rdMolDescriptors
 
+from openbabel import openbabel as ob
 from openbabel import pybel
 
 from plumbum.cmd import sdsorter,awk
@@ -275,6 +276,61 @@ def get_dude_descriptors(mol):
 
     return dude_descriptors
 
+def get_muv_atomcounts(countdict):
+    '''
+    Parameters
+    ----------
+    countdict: map
+        map atomicnum to the number of times it appeared in mol
+
+    Returns
+    ----------
+    countlist: array_like
+        list of counts of atom types used for MUV descriptors
+    '''
+    countlist = []
+    if 5 in countdict:
+        countlist.append(countdict[5])  # boron
+    else:
+        countlist.append(0)
+    if 35 in countdict:
+        countlist.append(countdict[35]) # bromine
+    else:
+        countlist.append(0)
+    if 6 in countdict:
+        countlist.append(countdict[6])  # carbon
+    else:
+        countlist.append(0)
+    if 17 in countdict:
+        countlist.append(countdict[17]) # chlorine
+    else:
+        countlist.append(0)
+    if 9 in countdict:
+        countlist.append(countdict[9])  # fluorine
+    else:
+        countlist.append(0)
+    if 53 in countdict:
+        countlist.append(countdict[53]) # iodine
+    else:
+        countlist.append(0)
+    if 7 in countdict:
+        countlist.append(countdict[7])  # nitrogen
+    else:
+        countlist.append(0)
+    if 8 in countdict:
+        countlist.append(countdict[8])  # oxygen
+    else:
+        countlist.append(0)
+    if 15 in countdict:
+        countlist.append(countdict[15]) # phosphorus
+    else:
+        countlist.append(0)
+    if 16 in countdict:
+        countlist.append(countdict[16]) # sulfur
+    else:
+        countlist.append(0)
+    return countlist
+
 def get_muv_descriptors(mol):
     '''
     Parameters
@@ -316,53 +372,48 @@ def get_muv_descriptors(mol):
     muv_descriptors.append(mol.GetNumHeavyAtoms())
     type_list = [atom.GetAtomicNum() for atom in mol.GetAtoms()]
     atom_counts = pd.DataFrame(type_list, columns=['type']).groupby('type').size().to_dict()
+    muv_descriptors = muv_descriptors + get_muv_atomcounts(atom_counts)
 
-    if 5 in atom_counts:
-        muv_descriptors.append(atom_counts[5])  # boron
-    else:
-        muv_descriptors.append(0)
-    if 35 in atom_counts:
-        muv_descriptors.append(atom_counts[35]) # bromine
-    else:
-        muv_descriptors.append(0)
-    if 6 in atom_counts:
-        muv_descriptors.append(atom_counts[6])  # carbon
-    else:
-        muv_descriptors.append(0)
-    if 17 in atom_counts:
-        muv_descriptors.append(atom_counts[17]) # chlorine
-    else:
-        muv_descriptors.append(0)
-    if 9 in atom_counts:
-        muv_descriptors.append(atom_counts[9])  # fluorine
-    else:
-        muv_descriptors.append(0)
-    if 53 in atom_counts:
-        muv_descriptors.append(atom_counts[53]) # iodine
-    else:
-        muv_descriptors.append(0)
-    if 7 in atom_counts:
-        muv_descriptors.append(atom_counts[7])  # nitrogen
-    else:
-        muv_descriptors.append(0)
-    if 8 in atom_counts:
-        muv_descriptors.append(atom_counts[8])  # oxygen
-    else:
-        muv_descriptors.append(0)
-    if 15 in atom_counts:
-        muv_descriptors.append(atom_counts[15]) # phosphorus
-    else:
-        muv_descriptors.append(0)
-    if 16 in atom_counts:
-        muv_descriptors.append(atom_counts[16]) # sulfur
-    else:
-        muv_descriptors.append(0)
-    
     # TODO: will this actually get them all?
     chiral_centers = Chem.FindMolChiralCenters(mol, includeUnassigned=True)
     muv_descriptors.append(len(chiral_centers))
     muv_descriptors.append(rdMolDescriptors.CalcNumRings(mol))
 
+    return muv_descriptors
+
+def get_muv_descriptors_babel(mol):
+    '''
+    Parameters
+    ----------
+    mol: object
+        OBMol object
+
+    Returns
+    ----------
+    muv_descriptors: array_like
+    '''
+    muv_descriptors = []
+    desc = mol.calcdesc()
+    muv_descriptors.append(desc['HBA1'])
+    muv_descriptors.append(desc['HBD'])
+    muv_descriptors.append(desc['logP'])
+    muv_descriptors.append(mol.NumAtoms())
+    muv_descriptors.append(mol.NumHvyAtoms())
+
+    type_list = [atom.GetAtomicNum() for atom in ob.OBMolAtomIter(mol)]
+    atom_counts = pd.DataFrame(type_list, columns=['type']).groupby('type').size().to_dict()
+    muv_descriptors = muv_descriptors + get_muv_atomcounts(atom_counts)
+
+    chiral_centers = 0
+    facade = ob.OBStereoFacade(mol)
+    for atom in ob.OBMolAtomIter(mol):
+        mid = atom.GetId()
+        if facade.HasTetrahedralStereo(mid):
+            tetra = facade.GetTetrahedralStereo(mid)
+            if tetra.IsSpecified():
+                chiral_center += 1
+    muv_descriptors.append(chiral_centers)
+    muv_descriptors.append(len(mol.GetSSSR()))
     return muv_descriptors
 
 # we generate descriptors with rdkit and give the user the option of using the
@@ -429,16 +480,27 @@ def generate_descriptors(mol_list, data_root=[], method='DUD-E', use_babel=False
         else:
             fullname = molname
         if use_babel:
-            # FIXME: if the file is empty, no error is thrown but we just proceed, not accounting for that file
+            # FIXME: if the file is empty, no error is thrown but we just
+            # proceed, not accounting for that file; this will trip an assert
+            # below due to the mismatch between mols seen and expected, but it
+            # should be handled in a better way
             for i,mol in enumerate(pybel.readfile(ext.split('.')[-1], fullname)):
                 if mol is not None:
-                    desc = mol.calcdesc()
-                    desc['charge'] = mol.charge
-                    if extra_descriptors is not None:
-                        features.append([desc[d] for d in ['MW','HBA1','HBD','rotors','logP','charge']] + 
-                                        extra_descriptors[count,:].tolist())
+                    mol.AddHydrogens()
+                    if method == 'DUD-E':
+                        desc = mol.calcdesc()
+                        desc['charge'] = mol.charge
+                        if extra_descriptors is not None:
+                            features.append([desc[d] for d in ['MW','HBA1','HBD','rotors','logP','charge']] + 
+                                            extra_descriptors[count,:].tolist())
+                        else:
+                            features.append([desc[d] for d in ['MW','HBA1','HBD','rotors','logP','charge']])
                     else:
-                        features.append([desc[d] for d in ['MW','HBA1','HBD','rotors','logP','charge']])
+                        desc = get_muv_descriptors_babel(mol)
+                        if extra_descriptors is not None:
+                            features.append(desc + extra_descriptors[count,:].tolist())
+                        else:
+                            features.append(desc)
                 else:
                     print('Problem with molecule %d from file %s\n' %(i+1,molname))
                     failures.append(count)
@@ -482,6 +544,7 @@ def generate_descriptors(mol_list, data_root=[], method='DUD-E', use_babel=False
                   print('Problem with molecule %d from file %s\n' %(i+1,molname))
                   failures.append(count)
               else:
+                  mol = Chem.AddHs(mol)
                   if method == 'DUD-E':
                       if extra_descriptors is not None:
                           features.append(get_dude_descriptors(mol) +
@@ -996,10 +1059,6 @@ if __name__=='__main__':
             help='Provide input json file specifying hyperparameter values for specific models;'
             'must specify "modelname":str and "params":dict')
     args = parser.parse_args()
-
-    # for now
-    if args.method == 'MUV':
-        assert not args.use_babel, 'For now, featurization with babel only supports DUD-E descriptors'
 
     # include features from user-provided file of precomputed features, if available
     if args.extra_descriptors:
