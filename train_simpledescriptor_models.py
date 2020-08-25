@@ -2,7 +2,7 @@
 import sys,os,re,glob,gzip,math,json
 from argparse import ArgumentParser
 from collections import namedtuple
-from joblib import load,dump
+import joblib
 
 import numpy as np
 import pandas as pd
@@ -1014,7 +1014,7 @@ if __name__=='__main__':
         print('Reading in precomputed descriptors; additional descriptors/mols '
                 'will not be included, but extra descriptors will be '
                 'concatenated\n')
-        fold_data,featurize_output = load(args.descriptor_file)
+        fold_data,featurize_output = joblib.load(args.descriptor_file)
         if args.extra_descriptors:
             shape = featurize_output.features.shape
             extra_shape = extra_descs.shape
@@ -1053,7 +1053,7 @@ if __name__=='__main__':
 
     if not args.descriptor_file:
         print('Dumping computed descriptors for reuse.\n')
-        dump((FoldData([], labels, fold_it), FeaturizeOutput(featurize_output.features, [], [])), 
+        joblib.dump((FoldData([], labels, fold_it), FeaturizeOutput(featurize_output.features, [], [])), 
                 '%sdescriptors.joblib' %args.outprefix)
 
     paramdict = {}
@@ -1080,7 +1080,7 @@ if __name__=='__main__':
                 print("{} mean accuracy: {:0.5f}".format(methodname, outm.score(featurize_output.features, labels)))
                 if args.dump:
                     print('Dumping fit model for later\n')
-                    dump(outm, '%s_%s.joblib' %(modelname, args.outprefix))
+                    joblib.dump(outm, '%s_%s.joblib' %(args.outprefix, methodname))
         else:
             for model in regressors:
                 methodname = methodnames[model]
@@ -1094,7 +1094,7 @@ if __name__=='__main__':
                 print("{} R^2: {:0.5f}".format(methodname, outm.score(featurize_output.features, labels)))
                 if args.dump:
                     print('Dumping fit model for later\n')
-                    dump(outm, '%s_%s.joblib' %(modelname, args.outprefix))
+                    joblib.dump(outm, '%s_%s.joblib' %(args.outprefix, methodname))
     elif args.fit_all:
         fit_all_models(featurize_output.features, labels, paramdict, fold_it, args.ncpus, args.seed, classifier)
     else:
@@ -1154,5 +1154,5 @@ if __name__=='__main__':
             if not args.outprefix:
                 args.outprefix = '%s_RF_%d' %(args.method, os.getpid())
             print('Dumping best model for later\n')
-            dump(gridsearch_out.best_estimator_, '%s.joblib' %args.outprefix)
+            joblib.dump(gridsearch_out.best_estimator_, '%s.joblib' %args.outprefix)
 

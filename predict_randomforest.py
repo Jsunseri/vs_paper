@@ -1,5 +1,5 @@
 #!/bin/env python
-import os, math, joblib
+import os, math, re, joblib
 from argparse import ArgumentParser
 
 import numpy as np
@@ -27,11 +27,15 @@ from sklearn.neighbors import KNeighborsRegressor
 
 from train_simpledescriptor_models import generate_descriptors, FeaturizeOutput, classifiers, regressors, methodnames
 
+def get_pocketome_ligname(ligfile):
+    m = re.search(r'(\S+)/...._._rec_...._(\S+)_(lig|uff_min)',ligfile)
+    return m.group(2)
+
 if __name__ == '__main__':
     parser = ArgumentParser(description='Load trained random forest and '
     'generate output csv of predictions for a provided test file.')
-    parser.add_argument('-p', '--pickle', type=str, required=True, 
-            help='Pickled dump of trained random forest, expected to have been '
+    parser.add_argument('-p', '--pickle', nargs='+', 
+            help='Pickled dump of one or more trained sklearn models, expected to have been '
             'generated with joblib')
     parser.add_argument('-t', '--testfile', nargs='+', 
             help='One or more test files with one example per line.')
@@ -42,17 +46,21 @@ if __name__ == '__main__':
             help='Which column to predict; if you pass nothing, it will be '
             '"Affinity" if it is available and "Label" otherwise. Eventually '
             'multiple prediction types at a time will be supported but not yet')
+    parser.add_argument('-m', '--special_moltitles', action='store_true',
+            help='Use the special-cased moltitle method based on parsing '
+            'filenames to be compatible with CNN results on PDBbind and '
+            'CrossDocked datasets')
     parser.add_argument('-r', '--data_root', nargs='*', default=[], 
             help='Common path to join with molnames to generate full location '
             'of files; can pass multiple, which will be tried in order')
-    parser.add_argument('-m', '--method', type=str, default='DUD-E',
+    parser.add_argument('-d', '--descriptors', type=str, default='DUD-E',
             help='Descriptor set to use; options are "DUD-E" or "MUV"')
     parser.add_argument('-o', '--outname', type=str, default='', 
             help='Output basename for prediction file')
     args = parser.parse_args()
 
-    assert os.path.isfile(args.pickle), "%s does not exist" %args.pickle
-    rf = joblib.load(args.pickle)
+    for pfile in args.pickle:
+        assert os.path.isfile(pfile), "%s does not exist" %pfile
 
     print('Parsing test molecules\n')
     mol_list = []
@@ -75,48 +83,56 @@ if __name__ == '__main__':
         labels += these_labels
 
     print('Generating descriptors\n')
-    features, failures, moltitles = generate_descriptors(mol_list, args.data_root, args.method)
-    if not moltitles:
-        print('Molecule titles not found in provided input')
+    # TODO: can infer which descriptors to use from model, since it was fit
+    # with one of the descriptor sets, instead of making the user pass it
+    features, failures, moltitles = generate_descriptors(mol_list,
+            args.data_root, args.descriptors)
 
     print('Making predictions\n')
-    # LABEL PREDICTION TARGET TITLE METHOD
-    # for predictions, don't delete failures, just predict inactive (i.e. ~3?
-    # for regressor, 0 for classifier)
-    if isinstance(rf, RandomForestRegressor):
-        y_pred = rf.predict(features)
-        for failure in failures:
-            y_pred = np.insert(y_pred, failure, 3.0)
-    elif isinstance(rf, RandomForestClassifier):
-        y_pred = rf.predict_proba(features)[:,1]
-        for failure in failures:
-            y_pred = np.insert(y_pred, failure, 0.0)
-    else:
-        assert 0, 'Unrecognized Random Forest class %s' %type(rf)
+    for pfile in args.pickle:
+        model = joblib.load(pfile)
+        # LABEL PREDICTION TARGET TITLE METHOD
+        # for predictions, don't delete failures, just predict inactive (i.e. ~3?
+        # for regressor, 0 for classifier)
+        if issubclass(model, regressors):
+            y_pred = model.predict(features)
+            for failure in failures:
+                y_pred = np.insert(y_pred, failure, 3.0)
+        elif issubclass(model, classifiers):
+            y_pred = model.predict_proba(features)[:,1]
+            for failure in failures:
+                y_pred = np.insert(y_pred, failure, 0.0)
+        else:
+            assert 0, 'Unrecognized sklearn class %s' % type(model).__name__
 
-    outname = args.outname
-    if not outname:
-        outname = 'rf_preds'
+        method = os.path.splitext(os.path.basename(pfile))[0]
+        outname = '%s%s' %(args.outname, method)
 
-    df['Prediction'] = y_pred
-    df['Method'] = 'RF_%s' %args.method
-    df['Target'] = df['Ligfile'].apply(lambda x: os.path.basename(os.path.dirname(x)))
-    if moltitles:
-        df['Title'] = moltitles
-        columnames = ['Label', 'Prediction', 'Target', 'Title', 'Method']
-    else:
-        columnames = ['Label', 'Prediction', 'Target', 'Method']
-    df.to_csv('%s.csv' %outname, sep=' ', columns=columnames, index=False, header=False)
-    y_true = df['Label'].tolist()
+        df['Prediction'] = y_pred
+        df['Method'] = method
+        df['Target'] = df['Ligfile'].apply(lambda x: os.path.basename(os.path.dirname(x)))
+        if args.special_moltitles:
+            if 'PocketomeGenCross_Output' in args.data_root[0].split('/'):
+                df['Title'] = df['Ligfile'].apply(lambda x: get_pocketome_ligname(x))
+            else:
+                df['Title'] = df['Ligfile'].apply(lambda x: os.path.basename(x).split('_')[0])
+        elif moltitles:
+            df['Title'] = moltitles
+            columnames = ['Label', 'Prediction', 'Target', 'Title', 'Method']
+        else:
+            print('Molecule titles not found in provided input')
+            columnames = ['Label', 'Prediction', 'Target', 'Method']
+        df.to_csv('%s.csv' %outname, sep=' ', columns=columnames, index=False, header=False)
+        y_true = df['Label'].tolist()
 
-    if scorecol == 'Label':
-        # do AUC...and eventually EF1% (TODO)
-        fpr,tpr,_ = roc_curve(y_true,y_pred)
-        auc = roc_auc_score(y_true,y_pred)
-        print('AUC: {:0.3f}'.format(auc))
-    else:
-        # do RMSE and R
-        r,_ = pearsonr(labels, y_pred)
-        print('R: {:0.3f}'.format(r))
-        rmse = math.sqrt(mean_squared_error(labels, y_pred))
-        print('RMSE: {:0.3f}'.format(rmse))
+        if scorecol == 'Label':
+            # do AUC...and eventually EF1% (TODO)
+            fpr,tpr,_ = roc_curve(y_true,y_pred)
+            auc = roc_auc_score(y_true,y_pred)
+            print('AUC: {:0.3f}'.format(auc))
+        else:
+            # do RMSE and R
+            r,_ = pearsonr(labels, y_pred)
+            print('R: {:0.3f}'.format(r))
+            rmse = math.sqrt(mean_squared_error(labels, y_pred))
+            print('RMSE: {:0.3f}'.format(rmse))
