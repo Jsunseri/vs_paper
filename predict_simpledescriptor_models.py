@@ -55,8 +55,11 @@ if __name__ == '__main__':
             'of files; can pass multiple, which will be tried in order')
     parser.add_argument('-d', '--descriptors', type=str, default='DUD-E',
             help='Descriptor set to use; options are "DUD-E" or "MUV"')
-    parser.add_argument('-o', '--outname', type=str, default='', 
+    parser.add_argument('-o', '--outprefix', type=str, default='', 
             help='Output basename for prediction file')
+    parser.add_argument('-b', '--use_babel', action='store_true', help='Use '
+            'OpenBabel instead of the RDKit for parsing molecules and generating '
+            'descriptors')
     args = parser.parse_args()
 
     for pfile in args.pickle:
@@ -75,18 +78,16 @@ if __name__ == '__main__':
         else:
             assert 0, 'Unknown scoring target column'
     assert scorecol in column_names, 'Column provided as scoring target not in column names'
-    for fname in args.testfile:
-        df = pd.read_csv(fname, names=column_names, delim_whitespace=True)
-        this_mol_list = df['Ligfile'].tolist()
-        these_labels = df[scorecol].tolist()
-        mol_list += this_mol_list
-        labels += these_labels
+    df_list = [pd.read_csv(fname, names=column_names, delim_whitespace=True) for fname in args.testfile]
+    df = pd.concat(df_list, ignore_index=True, sort=False)
+    mol_list = df['Ligfile'].tolist()
+    labels = df[scorecol].tolist()
 
     print('Generating descriptors\n')
     # TODO: can infer which descriptors to use from model, since it was fit
     # with one of the descriptor sets, instead of making the user pass it
     features, failures, moltitles = generate_descriptors(mol_list,
-            args.data_root, args.descriptors)
+            args.data_root, args.descriptors, args.use_babel)
 
     print('Making predictions\n')
     for pfile in args.pickle:
@@ -94,11 +95,11 @@ if __name__ == '__main__':
         # LABEL PREDICTION TARGET TITLE METHOD
         # for predictions, don't delete failures, just predict inactive (i.e. ~3?
         # for regressor, 0 for classifier)
-        if issubclass(model, regressors):
+        if issubclass(model.__class__, regressors):
             y_pred = model.predict(features)
             for failure in failures:
                 y_pred = np.insert(y_pred, failure, 3.0)
-        elif issubclass(model, classifiers):
+        elif issubclass(model.__class__, classifiers):
             y_pred = model.predict_proba(features)[:,1]
             for failure in failures:
                 y_pred = np.insert(y_pred, failure, 0.0)
@@ -106,7 +107,7 @@ if __name__ == '__main__':
             assert 0, 'Unrecognized sklearn class %s' % type(model).__name__
 
         method = os.path.splitext(os.path.basename(pfile))[0]
-        outname = '%s%s' %(args.outname, method)
+        outname = '%s%s' %(args.outprefix, method)
 
         df['Prediction'] = y_pred
         df['Method'] = method
@@ -116,23 +117,24 @@ if __name__ == '__main__':
                 df['Title'] = df['Ligfile'].apply(lambda x: get_pocketome_ligname(x))
             else:
                 df['Title'] = df['Ligfile'].apply(lambda x: os.path.basename(x).split('_')[0])
+            columnames = [scorecol, 'Prediction', 'Target', 'Title', 'Method']
         elif moltitles:
             df['Title'] = moltitles
-            columnames = ['Label', 'Prediction', 'Target', 'Title', 'Method']
+            columnames = [scorecol, 'Prediction', 'Target', 'Title', 'Method']
         else:
             print('Molecule titles not found in provided input')
-            columnames = ['Label', 'Prediction', 'Target', 'Method']
+            columnames = [scorecol, 'Prediction', 'Target', 'Method']
         df.to_csv('%s.csv' %outname, sep=' ', columns=columnames, index=False, header=False)
-        y_true = df['Label'].tolist()
+        y_true = df[scorecol].tolist()
 
         if scorecol == 'Label':
             # do AUC...and eventually EF1% (TODO)
             fpr,tpr,_ = roc_curve(y_true,y_pred)
             auc = roc_auc_score(y_true,y_pred)
-            print('AUC: {:0.3f}'.format(auc))
+            print('{} AUC: {:0.3f}'.format(type(model).__name__, auc))
         else:
             # do RMSE and R
             r,_ = pearsonr(labels, y_pred)
-            print('R: {:0.3f}'.format(r))
+            print('{} R: {:0.3f}'.format(type(model).__name__, r))
             rmse = math.sqrt(mean_squared_error(labels, y_pred))
-            print('RMSE: {:0.3f}'.format(rmse))
+            print('{} RMSE: {:0.3f}'.format(type(model).__name__, rmse))
