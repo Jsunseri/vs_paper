@@ -1028,8 +1028,8 @@ if __name__=='__main__':
             'default is "Label,Affinity,Recfile,Ligfile"')
     parser.add_argument('-d', '--descriptor_file', type=str, default='',
             help='Provide precomputed descriptors for the mols')
-    parser.add_argument('-e', '--extra_descriptors', type=str, default='',
-            help='Provide an additional file with precomputed descriptors')
+    parser.add_argument('-e', '--extra_descriptors', nargs='*', default=[], 
+            help='Provide additional files with precomputed descriptors')
     parser.add_argument('-r', '--data_root', nargs='*', default=[], 
             help='Common path to join with molnames to generate full location '
             'of files; can pass multiple, which will be tried in order')
@@ -1061,11 +1061,12 @@ if __name__=='__main__':
     args = parser.parse_args()
 
     # include features from user-provided file of precomputed features, if available
-    if args.extra_descriptors:
-        extra_df = pd.read_csv(args.extra_descriptors, delim_whitespace=True, header=None)
-        extra_descs = extra_df.to_numpy()
-    else:
-        extra_descs = None
+    extra_descs = None
+    desclist = []
+    for descfile in args.extra_descriptors:
+        desclist.append(pd.read_csv(descfile, delim_whitespace=True, header=None))
+    if desclist:
+        extra_descs = np.vstack([extra_df.to_numpy() for extra_df in desclist])
 
     # read in precomputed descriptors to save time if provided (hopefully this
     # saves time)

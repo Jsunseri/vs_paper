@@ -28,7 +28,7 @@ from sklearn.neighbors import KNeighborsRegressor
 from train_simpledescriptor_models import generate_descriptors, FeaturizeOutput, classifiers, regressors, methodnames
 
 def get_pocketome_ligname(ligfile):
-    m = re.search(r'(\S+)/...._._rec_...._(\S+)_(lig|uff_min)',ligfile)
+    m = re.search(r'(\S+)/...._(\S+)_',ligfile)
     return m.group(2)
 
 if __name__ == '__main__':
@@ -60,6 +60,8 @@ if __name__ == '__main__':
     parser.add_argument('-b', '--use_babel', action='store_true', help='Use '
             'OpenBabel instead of the RDKit for parsing molecules and generating '
             'descriptors')
+    parser.add_argument('--take_first', action='store_true',
+            help='Take first mol from multi-model files.')
     args = parser.parse_args()
 
     for pfile in args.pickle:
@@ -87,7 +89,7 @@ if __name__ == '__main__':
     # TODO: can infer which descriptors to use from model, since it was fit
     # with one of the descriptor sets, instead of making the user pass it
     features, failures, moltitles = generate_descriptors(mol_list,
-            args.data_root, args.descriptors, args.use_babel)
+            args.data_root, args.descriptors, args.use_babel, None, args.take_first)
 
     print('Making predictions\n')
     for pfile in args.pickle:
