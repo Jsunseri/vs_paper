@@ -385,8 +385,7 @@ def get_muv_descriptors_babel(mol):
     '''
     Parameters
     ----------
-    mol: object
-        OBMol object
+    mol: pybel Molecule object
 
     Returns
     ----------
@@ -397,6 +396,7 @@ def get_muv_descriptors_babel(mol):
     muv_descriptors.append(desc['HBA1'])
     muv_descriptors.append(desc['HBD'])
     muv_descriptors.append(desc['logP'])
+    mol = mol.OBMol
     muv_descriptors.append(mol.NumAtoms())
     muv_descriptors.append(mol.NumHvyAtoms())
 
@@ -411,7 +411,7 @@ def get_muv_descriptors_babel(mol):
         if facade.HasTetrahedralStereo(mid):
             tetra = facade.GetTetrahedralStereo(mid)
             if tetra.IsSpecified():
-                chiral_center += 1
+                chiral_centers += 1
     muv_descriptors.append(chiral_centers)
     muv_descriptors.append(len(mol.GetSSSR()))
     return muv_descriptors
@@ -486,7 +486,7 @@ def generate_descriptors(mol_list, data_root=[], method='DUD-E', use_babel=False
             # should be handled in a better way
             for i,mol in enumerate(pybel.readfile(ext.split('.')[-1], fullname)):
                 if mol is not None:
-                    mol.AddHydrogens()
+                    mol.addh()
                     if method == 'DUD-E':
                         desc = mol.calcdesc()
                         desc['charge'] = mol.charge
@@ -1123,6 +1123,8 @@ if __name__=='__main__':
         for i,mname in enumerate(available_methods):
             paramdict[mname] = params[i]
     # TODO: clean up these options, things changed at the end of last week
+    # probably just get rid of fit_all and have it be just_fit or default
+    # (hyperparam opt with folds if available and otherwise random 5-fold CV)
     if args.just_fit:
         if classifier:
             for model in classifiers:
