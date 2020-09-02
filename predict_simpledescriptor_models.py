@@ -53,13 +53,19 @@ if __name__ == '__main__':
     parser.add_argument('-r', '--data_root', nargs='*', default=[], 
             help='Common path to join with molnames to generate full location '
             'of files; can pass multiple, which will be tried in order')
-    parser.add_argument('-d', '--descriptors', type=str, default='DUD-E',
-            help='Descriptor set to use; options are "DUD-E" or "MUV"')
+    parser.add_argument('-d', '--descriptors', type=str, default='DUDE',
+            help='Descriptor set to use; options are "DUDE" or "MUV"')
+    parser.add_argument('-e', '--extra_descriptors', nargs='*', default=[], 
+            help='Provide additional files with precomputed descriptors')
     parser.add_argument('-o', '--outprefix', type=str, default='', 
             help='Output basename for prediction file')
     parser.add_argument('-b', '--use_babel', action='store_true', help='Use '
             'OpenBabel instead of the RDKit for parsing molecules and generating '
             'descriptors')
+    parser.add_argument('-sz', '--skip_zeros', action='store_true', help='If '
+            'any column of the extra descriptors is exactly 0.0, skip that example')
+    parser.add_argument('-x', '--exclude_titles', type=str, default='',
+            help='Filename specifying a list of moltitles to exclude from predictions')
     parser.add_argument('--take_first', action='store_true',
             help='Take first mol from multi-model files.')
     args = parser.parse_args()
@@ -86,10 +92,30 @@ if __name__ == '__main__':
     labels = df[scorecol].tolist()
 
     print('Generating descriptors\n')
+    # include features from user-provided file of precomputed features, if available
+    extra_descs = None
+    desclist = []
+    for descfile in args.extra_descriptors:
+        desclist.append(pd.read_csv(descfile, delim_whitespace=True, header=None))
+    if desclist:
+        extra_descs = np.hstack([extra_df.to_numpy() for extra_df in desclist])
+        assert extra_descs.shape[0] == len(labels), 'Extra descriptor file should have the same number of examples as the input but has %s instead of %s' %(extra_descs.shape[0], len(labels))
+        skip_indices = []
+        if args.skip_zeros:
+            skip_indices = np.nonzero(extra_descs==0.0)[0].tolist()
+
     # TODO: can infer which descriptors to use from model, since it was fit
     # with one of the descriptor sets, instead of making the user pass it
     features, failures, moltitles = generate_descriptors(mol_list,
-            args.data_root, args.descriptors, args.use_babel, None, args.take_first)
+            args.data_root, args.descriptors, args.use_babel, extra_descs, args.take_first)
+    if skip_indices:
+        features = np.delete(features, skip_indices, 0)
+        if moltitles:
+            moltitles = [title for i,title in enumerate(moltitles) if i not in skip_indices]
+        labels = np.delete(labels, skip_indices, axis=0)
+        if failures:
+            failures = [failure for failure in failures if failure not in skip_indices]
+        df = df.drop(skip_indices)
 
     print('Making predictions\n')
     for pfile in args.pickle:
@@ -126,6 +152,10 @@ if __name__ == '__main__':
         else:
             print('Molecule titles not found in provided input')
             columnames = [scorecol, 'Prediction', 'Target', 'Method']
+        if args.exclude_titles:
+            assert 'Title' in columnames, 'Cannot exclude based on molecule titles because molecule titles were not found'
+            exclude_titles = pd.read_csv(args.exclude_titles, delim_whitespace=True, header=None).tolist()
+            df = df[~df['Title'].isin(exclude_titles)]
         df.to_csv('%s.csv' %outname, sep=' ', columns=columnames, index=False, header=False)
         y_true = df[scorecol].tolist()
 

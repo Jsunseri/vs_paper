@@ -85,8 +85,15 @@ for summaryfile in args.summary:
 
 with open('%s.csv' %args.outprefix, 'w') as f:
     for tup in order:
-        for summaryfile in args.summary:
-            if tup not in features[summaryfile]:
-                print('%s not found in %s, setting output to 0' %(tup,summaryfile))
-                features[summaryfile][tup] = '0.0'
+        for fname in args.summary:
+            if tup not in features[fname]:
+                # the .smi files in dkoes' DUDe directory have the "ZIN" characters
+                # in ZINC compound identifiers cut off, for some unknown reason,
+                # but the correct titles appear in the sdf files
+                alttup = (tup[0],'ZIN' + tup[1])
+                if alttup not in features[fname]:
+                    print('%s not found in %s, setting output to 0.0' %(tup,fname))
+                    features[fname][tup] = '0.0'
+                else:
+                    features[fname][tup] = features[fname][alttup]
         f.write('%s\n' %(' '.join([features[fname][tup] for fname in args.summary])))

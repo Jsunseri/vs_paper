@@ -48,7 +48,7 @@ import vspaper_settings
 
 FoldData = namedtuple('FoldData', ['fnames', 'labels', 'fold_it'])
 FeaturizeOutput = namedtuple('FeaturizeOutput', ['features', 'failures', 'moltitles'])
-FixedOutput = namedtuple('FixedOutput', ['labels', 'fold_it'])
+FixedOutput = namedtuple('FixedOutput', ['labels', 'moltitles', 'fold_it'])
 FitOutput = namedtuple('FitOutput', ['test_scores', 'y_pred', 'y_true'])
 
 classifiers = (KNeighborsClassifier, DecisionTreeClassifier, 
@@ -255,7 +255,7 @@ def get_dude_descriptors(mol):
     ----------
     dude_descriptors: array_like
         array of the calculated descriptors for mol. descriptors used are the
-        same as those used for construction of DUD-E. they are:
+        same as those used for construction of DUDE. they are:
         
             + molecular weight
             + number of hydrogen bond acceptors
@@ -417,8 +417,8 @@ def get_muv_descriptors_babel(mol):
     return muv_descriptors
 
 # we generate descriptors with rdkit and give the user the option of using the
-# DUD-E or MUV descriptors
-def generate_descriptors(mol_list, data_root=[], method='DUD-E', use_babel=False, extra_descriptors=None,
+# DUDE or MUV descriptors
+def generate_descriptors(mol_list, data_root=[], method='DUDE', use_babel=False, extra_descriptors=None,
                          take_first=False):
     '''
     Parameters
@@ -429,8 +429,8 @@ def generate_descriptors(mol_list, data_root=[], method='DUD-E', use_babel=False
         common path to join with molnames to generate full location, provided
         as a list which are tried in order until file is found or the list is
         exhausted
-    method: {'DUD-E', 'MUV'}, optional
-        Which set of descriptors to use; either DUD-E (the default) or MUV
+    method: {'DUDE', 'MUV'}, optional
+        Which set of descriptors to use; either DUDE (the default) or MUV
     use_babel: bool
         parse files and generate descriptors with babel instead of rdkit
     extra_descriptors: array_like, optional
@@ -458,7 +458,7 @@ def generate_descriptors(mol_list, data_root=[], method='DUD-E', use_babel=False
     features = []
     moltitles = []
     count = 0 # track total number of mols seen and compare with expected
-    assert method == 'MUV' or method == 'DUD-E', "Only MUV or DUD-E molecular "
+    assert method == 'MUV' or method == 'DUDE', "Only MUV or DUDE molecular "
     "descriptors supported"
 
     # how many mols do we expect per filename?
@@ -480,14 +480,22 @@ def generate_descriptors(mol_list, data_root=[], method='DUD-E', use_babel=False
         else:
             fullname = molname
         if use_babel:
+            ext = ext.split('.')[-1]
+            if ext == 'ism': ext = 'smi'
+            # detour to get titles if we can do it easily
+            if ext == 'smi':
+                with open(fullname, 'r') as f:
+                  moltitles += [line.strip().split()[-1] for line in f]
+            elif ext == 'sdf':
+                moltitles += (sdsorter['-print', '-omit-header', fullname] | awk['{print $2}'])().strip().split('\n')
             # FIXME: if the file is empty, no error is thrown but we just
             # proceed, not accounting for that file; this will trip an assert
             # below due to the mismatch between mols seen and expected, but it
             # should be handled in a better way
-            for i,mol in enumerate(pybel.readfile(ext.split('.')[-1], fullname)):
+            for i,mol in enumerate(pybel.readfile(ext, fullname)):
                 if mol is not None:
                     mol.addh()
-                    if method == 'DUD-E':
+                    if method == 'DUDE':
                         desc = mol.calcdesc()
                         desc['charge'] = mol.charge
                         if extra_descriptors is not None:
@@ -545,7 +553,7 @@ def generate_descriptors(mol_list, data_root=[], method='DUD-E', use_babel=False
                   failures.append(count)
               else:
                   mol = Chem.AddHs(mol)
-                  if method == 'DUD-E':
+                  if method == 'DUDE':
                       if extra_descriptors is not None:
                           features.append(get_dude_descriptors(mol) +
                                   extra_descriptors[count,:].tolist())
@@ -574,7 +582,7 @@ def generate_descriptors(mol_list, data_root=[], method='DUD-E', use_babel=False
     features = np.asarray(features)
     return FeaturizeOutput(features, failures, moltitles)
 
-def delete_failure_indices_from_folds(failures, labels, fold_it):
+def delete_failure_indices_from_folds(failures, labels, moltitles, fold_it):
     '''
     Parameters
     ----------
@@ -582,6 +590,8 @@ def delete_failure_indices_from_folds(failures, labels, fold_it):
         indices of examples to be deleted
     labels: array_like
         example labels
+    moltitles: array_like
+        molecule titles
     fold_it: iterable
         iterable yielding fold indices
     
@@ -595,6 +605,10 @@ def delete_failure_indices_from_folds(failures, labels, fold_it):
 
     # delete labels associated with any mols we failed to parse
     labels = np.delete(labels, failures, axis=0)
+
+    # also delete them from moltitles if it isn't empty
+    if moltitles:
+        moltitles = [title for i,title in enumerate(moltitles) if i not in failures]
  
     # also delete them from the iterable defining the folds, if it is populated
     # that iterable is actually a bunch of lists of indices
@@ -633,7 +647,7 @@ def delete_failure_indices_from_folds(failures, labels, fold_it):
                 train += new_test_folds[num]
             fold_it.append((train,new_test_folds[fold]))
 
-    return FixedOutput(labels, fold_it)
+    return FixedOutput(labels, moltitles, fold_it)
 
 def fit_model(X_train, y_train, params=None, njobs=1, seed=42, classifier=False):
     '''
@@ -1033,8 +1047,8 @@ if __name__=='__main__':
     parser.add_argument('-r', '--data_root', nargs='*', default=[], 
             help='Common path to join with molnames to generate full location '
             'of files; can pass multiple, which will be tried in order')
-    parser.add_argument('-m', '--method', type=str, default='DUD-E',
-            help='Descriptor set to use; options are "DUD-E" or "MUV"')
+    parser.add_argument('-m', '--method', type=str, default='DUDE',
+            help='Descriptor set to use; options are "DUDE" or "MUV"')
     parser.add_argument('-s', '--seed', type=int, default=42,
             help='Random seed, used for boostrapping and feature sampling')
     parser.add_argument('-u', '--use_all', action='store_true', 
@@ -1066,7 +1080,7 @@ if __name__=='__main__':
     for descfile in args.extra_descriptors:
         desclist.append(pd.read_csv(descfile, delim_whitespace=True, header=None))
     if desclist:
-        extra_descs = np.vstack([extra_df.to_numpy() for extra_df in desclist])
+        extra_descs = np.hstack([extra_df.to_numpy() for extra_df in desclist])
 
     # read in precomputed descriptors to save time if provided (hopefully this
     # saves time)
@@ -1086,7 +1100,7 @@ if __name__=='__main__':
         assert args.prefix, 'Need fold files if precomputed descriptors are not provided'
         fold_data = find_and_parse_folds(args.prefix, args.foldnums, args.columns, args.use_all)
         if args.extra_descriptors:
-            assert extra_df.shape[0] == len(fold_data.labels), 'Extra descriptor file should have the same number of examples as the folds but has %s instead of %s' %(extra_df.shape[0], len(fold_data.labels))
+            assert extra_descs.shape[0] == len(fold_data.labels), 'Extra descriptor file should have the same number of examples as the folds but has %s instead of %s' %(extra_descs.shape[0], len(fold_data.labels))
         # TODO: multiprocess this? would need to rewrite how fold iteratable is made
         print('Generating descriptors...\n')
         featurize_output = generate_descriptors(fold_data.fnames, args.data_root,
