@@ -64,8 +64,8 @@ if __name__ == '__main__':
             'descriptors')
     parser.add_argument('-sz', '--skip_zeros', action='store_true', help='If '
             'any column of the extra descriptors is exactly 0.0, skip that example')
-    parser.add_argument('-x', '--exclude_titles', type=str, default='',
-            help='Filename specifying a list of moltitles to exclude from predictions')
+    parser.add_argument('-x', '--exclude', type=str, default='',
+            help='Filename specifying a list of target:moltitle pairs to exclude from predictions')
     parser.add_argument('--take_first', action='store_true',
             help='Take first mol from multi-model files.')
     args = parser.parse_args()
@@ -152,10 +152,14 @@ if __name__ == '__main__':
         else:
             print('Molecule titles not found in provided input')
             columnames = [scorecol, 'Prediction', 'Target', 'Method']
-        if args.exclude_titles:
+        if args.exclude:
             assert 'Title' in columnames, 'Cannot exclude based on molecule titles because molecule titles were not found'
-            exclude_titles = pd.read_csv(args.exclude_titles, delim_whitespace=True, header=None).tolist()
-            df = df[~df['Title'].isin(exclude_titles)]
+            exclude_info = pd.read_csv(args.exclude, delim_whitespace=True,
+                    header=None, names=['Target', 'Title'])
+            exclude_data = set(['-'.join(item) for item in 
+                zip(exclude_info['Target'].tolist(), exclude_info['Title'].tolist())])
+            df['Excludekey'] = df.apply(lambda row: row['Target'] + '-' + row['Title'], axis=1)
+            df = df[~(df['Excludekey'].isin(exclude_data))]
         df.to_csv('%s.csv' %outname, sep=' ', columns=columnames, index=False, header=False)
         y_true = df[scorecol].tolist()
 

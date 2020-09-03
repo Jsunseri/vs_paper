@@ -27,17 +27,20 @@ df = pd.read_csv(args.summaryfile, delim_whitespace=True, header=None,
         names=['Label', 'Prediction', 'Target', 'Title', 'Method'],
         dtype={'Label': np.float64, 'Prediction': np.float64, 'Target': str,
             'Title': str, 'Method': str})
-include = zip(df['Title'].tolist(), df['Target'].tolist())
+
+mols = df['Title'].tolist()
+targets = df['Target'].tolist()
 
 # rename the DUDe ZINC compounds that in dkoes' smiles have the ZIN stripped off
 dataset = os.path.splitext(os.path.basename(args.types))[0]
 isdude = True if dataset == 'dude' else False
 if isdude:
-    for i,(mol,target) in enumerate(include):
+    for i,mol in enumerate(mols):
         newmol = mol.lstrip('ZIN')
         if mol != newmol:
-            include[i] = (newmol,target)
+            mols[i] = newmol
 
+include = zip(mols, targets)
 # get all moltitles associated with types
 molfiles = pd.read_csv(args.types, delim_whitespace=True, header=None,
         names=['Label', 'Recfile', 'Ligfile'])['Ligfile'].tolist()
@@ -69,6 +72,6 @@ else:
     base = os.path.splitext(os.path.basename(args.summaryfile))[0]
     fname = '%s_excludelist' %(base)
 with open(fname, 'w') as e:
-    for name in moltitles:
+    for name in allmols:
         if name not in include:
-            e.write('%s\n' %name)
+            e.write('%s %s\n' %(name[1], name[0]))

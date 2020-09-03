@@ -57,10 +57,12 @@ classifiers = (KNeighborsClassifier, DecisionTreeClassifier,
 regressors = (Lasso, KNeighborsRegressor, DecisionTreeRegressor, 
                RandomForestRegressor, SVR, GradientBoostingRegressor)
 
-no_init_params = (Lasso, KNeighborsRegressor, KNeighborsClassifier, SVR, SVC)
+no_init_params = (Lasso, SVR, SVC)
 
 seedonly = (GradientBoostingRegressor, DecisionTreeRegressor, GradientBoostingClassifier, 
             DecisionTreeClassifier)
+
+jobsonly = (KNeighborsRegressor, KNeighborsClassifier)
 
 methodnames = {KNeighborsClassifier: 'KNN', SVC: 'SVM', GradientBoostingClassifier: 'GBT', 
                DecisionTreeClassifier: 'DT', RandomForestClassifier: 'RF', 
@@ -1062,7 +1064,9 @@ if __name__=='__main__':
     parser.add_argument('-nc', '--ncpus', type=int, default=1, 
             help='Number of processes to launch for model fitting; default=1')
     parser.add_argument('-b', '--use_babel', action='store_true', 
-            help='Use OpenBabel to read in molecules and generate descriptors (default is to use rdkit)')
+            help='Use OpenBabel to read in molecules and generate descriptors '
+            '(default is to use rdkit, because if rdkit chokes on your inputs '
+            'they are bad and you should feel bad)')
     parser.add_argument('-t', '--take_first', action='store_true',
             help='Take first mol from multi-model files.')
     parser.add_argument('-o', '--outprefix', type=str, default='', 
@@ -1092,10 +1096,12 @@ if __name__=='__main__':
         if args.extra_descriptors:
             shape = featurize_output.features.shape
             extra_shape = extra_descs.shape
-            assert shape[0] == extra_shape[0], 'First dim of descriptors and '
-            'extra_descriptors must match, but they are %d and %d' %(shape[0], extra_shape[0])
-            featurize_output.features = np.append(featurize_output.features,
+            assert shape[0] == extra_shape[0], ('First dim of descriptors and '
+            'extra_descriptors must match, but they are %d and %d' %(shape[0], extra_shape[0]))
+            allfeatures = np.append(featurize_output.features,
                     extra_descs, axis=1)
+            featurize_output = FeaturizeOutput(allfeatures,
+                    featurize_output.failures, featurize_output.moltitles)
     else:
         assert args.prefix, 'Need fold files if precomputed descriptors are not provided'
         fold_data = find_and_parse_folds(args.prefix, args.foldnums, args.columns, args.use_all)
@@ -1144,14 +1150,16 @@ if __name__=='__main__':
         if classifier:
             for model in classifiers:
                 methodname = methodnames[model]
-                print('Doing a single fit of %s with params %s' %(methodname,str(params)))
                 params = paramdict[methodname] if methodname in paramdict else {}
-                if issubclass(model, RandomForestClassifier):
-                    estimator = model(random_state=args.seed, class_weight='balanced_subsample', **params)
-                elif issubclass(model, no_init_params):
+                print('Doing a single fit of %s with params %s' %(methodname,str(params)))
+                if issubclass(model, no_init_params):
                     estimator = model(**params)
-                else:
+                elif issubclass(model, seedonly):
                     estimator = model(random_state=args.seed, **params)
+                elif issubclass(model, jobsonly):
+                    estimator = model(n_jobs=args.ncpus, **params)
+                else:
+                    estimator = model(n_jobs=args.ncpus, random_state=args.seed, **params)
                 outm = estimator.fit(featurize_output.features, labels)
                 print("{} mean accuracy: {:0.5f}".format(methodname, outm.score(featurize_output.features, labels)))
                 if args.dump:
@@ -1164,8 +1172,12 @@ if __name__=='__main__':
                 print('Doing a single fit of %s with params %s' %(methodname,str(params)))
                 if issubclass(model, no_init_params):
                     estimator = model(**params)
-                else:
+                elif issubclass(model, seedonly):
                     estimator = model(random_state=args.seed, **params)
+                elif issubclass(model, jobsonly):
+                    estimator = model(n_jobs=args.ncpus, **params)
+                else:
+                    estimator = model(n_jobs=args.ncpus, random_state=args.seed, **params)
                 outm = estimator.fit(featurize_output.features, labels)
                 print("{} R^2: {:0.5f}".format(methodname, outm.score(featurize_output.features, labels)))
                 if args.dump:
