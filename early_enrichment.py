@@ -84,7 +84,7 @@ for i,fname in enumerate(sys.argv[1:]):
     # len(x) is the total number of compounds in the group, we want the top 1%
     # of predictions in each group and then we want to see how many of those
     # are actives
-    topn = grouped.apply(lambda x: x.nlargest(int(len(x) * .01), 'Predictions'))
+    topn = grouped.apply(lambda x: x.nlargest(math.ceil(len(x) * .01), 'Predictions'))
     # we still have a Target column, so drop the redundant index
     topn.reset_index(inplace=True, drop=True)
     topn_grouped = topn.groupby(['Target'])
