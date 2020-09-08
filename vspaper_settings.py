@@ -71,7 +71,8 @@ name_map = {'dense-CNNscore-mean': 'Dense\n(Pose)', 'dense-CNNaffinity-mean': 'D
         'general_default2018_consensus': 'General\n(Consensus)',
         'RF-Refined-DUDe': 'RF Refined\n(DUD-E features)',
         'RF-Refined-MUV': 'RF Refined\n(MUV features)', 
-        'MUVdesc_general_DT': 'MUV descriptors\nfit General Set\nDT'
+        'MUVdesc_general_DT': 'MUV\ndescriptors,\nGeneral Set fit,\nDT',
+        'MUVdesc_general_GBT': 'MUV\ndescriptors,\nGeneral Set fit,\nGBT'
         }
 
 reverse_map = {'Dense\n(Pose)': 'dense-CNNscore-mean',

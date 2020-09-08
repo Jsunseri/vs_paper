@@ -15,6 +15,7 @@ from scipy.stats import pearsonr
 from sklearn.metrics import roc_curve, roc_auc_score, make_scorer
 
 from sklearn.linear_model import Lasso
+from sklearn.linear_model import LogisticRegression
 
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.ensemble import RandomForestRegressor
@@ -52,7 +53,8 @@ FixedOutput = namedtuple('FixedOutput', ['labels', 'moltitles', 'fold_it'])
 FitOutput = namedtuple('FitOutput', ['test_scores', 'y_pred', 'y_true'])
 
 classifiers = (KNeighborsClassifier, DecisionTreeClassifier, 
-               RandomForestClassifier, SVC, GradientBoostingClassifier)
+               RandomForestClassifier, SVC, GradientBoostingClassifier,
+               LogisticRegression)
 
 regressors = (Lasso, KNeighborsRegressor, DecisionTreeRegressor, 
                RandomForestRegressor, SVR, GradientBoostingRegressor)
@@ -68,7 +70,7 @@ methodnames = {KNeighborsClassifier: 'KNN', SVC: 'SVM', GradientBoostingClassifi
                DecisionTreeClassifier: 'DT', RandomForestClassifier: 'RF', 
                Lasso: 'Lasso', KNeighborsRegressor: 'KNN', SVR: 'SVM', 
                GradientBoostingRegressor: 'GBT', DecisionTreeRegressor: 'DT', 
-               RandomForestRegressor: 'RF'
+               RandomForestRegressor: 'RF', LogisticRegression: 'Logistic'
               }
 
 # TODO: maybe too much? min_samples_split at least seems to just be the
