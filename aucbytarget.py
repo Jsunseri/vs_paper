@@ -17,7 +17,7 @@ from sklearn.metrics import roc_curve, roc_auc_score
 from sklearn.metrics import precision_recall_curve
 from sklearn.metrics import average_precision_score
 
-from vspaper_settings import paper_palettes, name_map, reverse_map, swarm_markers, litpcba_successes
+from vspaper_settings import paper_palettes, name_map, reverse_map, swarm_markers, litpcba_successes, litpcba_order
 
 # In matplotlib < 1.5, plt.fill_between does not have a 'step'
 # argument
@@ -473,5 +473,7 @@ use those color schemes')
                     for target in targets:
                         # assume there was no training data
                         sims[method][target] = 0
+        if len(set(targets).intersection(litpcba_order)) == len(targets):
+            targets = [t for t in litpcba_order if t in targets]
         overall_stats = mean_auc(data, methods, targets, noskill, sims, args)
         print(overall_stats)

@@ -25,7 +25,7 @@ from sklearn.svm import SVR
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.neighbors import KNeighborsRegressor
 
-from train_simpledescriptor_models import generate_descriptors, FeaturizeOutput, classifiers, regressors, methodnames
+from train_simpledescriptor_models import generate_descriptors, FoldData, FeaturizeOutput, classifiers, regressors, methodnames
 
 def get_pocketome_ligname(ligfile):
     m = re.search(r'(\S+)/...._(\S+)_',ligfile)
@@ -55,6 +55,9 @@ if __name__ == '__main__':
             'of files; can pass multiple, which will be tried in order')
     parser.add_argument('-d', '--descriptors', type=str, default='DUDE',
             help='Descriptor set to use; options are "DUDE" or "MUV"')
+    parser.add_argument('-df', '--descriptor_file', type=str, default='',
+            help='Optionally provide file of precomputed molecular descriptors '
+            'to save time')
     parser.add_argument('-e', '--extra_descriptors', nargs='*', default=[], 
             help='Provide additional files with precomputed descriptors')
     parser.add_argument('-o', '--outprefix', type=str, default='', 
@@ -74,8 +77,6 @@ if __name__ == '__main__':
         assert os.path.isfile(pfile), "%s does not exist" %pfile
 
     print('Parsing test molecules\n')
-    mol_list = []
-    labels = []
     column_names = [name for name in args.columns.split(',') if name]
     scorecol = args.scorename
     if not scorecol:
@@ -91,23 +92,29 @@ if __name__ == '__main__':
     mol_list = df['Ligfile'].tolist()
     labels = df[scorecol].tolist()
 
-    print('Generating descriptors\n')
+    print('Checking for user-provided descriptors\n')
     # include features from user-provided file of precomputed features, if available
     extra_descs = None
     desclist = []
+    skip_indices = []
     for descfile in args.extra_descriptors:
         desclist.append(pd.read_csv(descfile, delim_whitespace=True, header=None))
     if desclist:
         extra_descs = np.hstack([extra_df.to_numpy() for extra_df in desclist])
         assert extra_descs.shape[0] == len(labels), 'Extra descriptor file should have the same number of examples as the input but has %s instead of %s' %(extra_descs.shape[0], len(labels))
-        skip_indices = []
         if args.skip_zeros:
             skip_indices = np.nonzero(extra_descs==0.0)[0].tolist()
-
-    # TODO: can infer which descriptors to use from model, since it was fit
-    # with one of the descriptor sets, instead of making the user pass it
-    features, failures, moltitles = generate_descriptors(mol_list,
-            args.data_root, args.descriptors, args.use_babel, extra_descs, args.take_first)
+    if args.descriptor_file:
+        _,featurize_output = joblib.load(args.descriptor_file)
+        features = featurize_output.features
+        failures = featurize_output.failures
+        moltitles = featurize_output.moltitles
+    else:
+        print('Generating descriptors\n')
+        # TODO: can infer which descriptors to use from model, since it was fit
+        # with one of the descriptor sets, instead of making the user pass it
+        features, failures, moltitles = generate_descriptors(mol_list,
+                args.data_root, args.descriptors, args.use_babel, extra_descs, args.take_first)
     if skip_indices:
         features = np.delete(features, skip_indices, 0)
         if moltitles:

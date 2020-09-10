@@ -53,11 +53,11 @@ FixedOutput = namedtuple('FixedOutput', ['labels', 'moltitles', 'fold_it'])
 FitOutput = namedtuple('FitOutput', ['test_scores', 'y_pred', 'y_true'])
 
 classifiers = (KNeighborsClassifier, DecisionTreeClassifier, 
-               RandomForestClassifier, SVC, GradientBoostingClassifier,
-               LogisticRegression)
+               RandomForestClassifier, GradientBoostingClassifier,
+               LogisticRegression, SVC)
 
 regressors = (Lasso, KNeighborsRegressor, DecisionTreeRegressor, 
-               RandomForestRegressor, SVR, GradientBoostingRegressor)
+               RandomForestRegressor, GradientBoostingRegressor, SVR)
 
 no_init_params = (Lasso, SVR, SVC)
 
@@ -1135,7 +1135,7 @@ if __name__=='__main__':
 
     if not args.descriptor_file:
         print('Dumping computed descriptors for reuse.\n')
-        joblib.dump((FoldData([], labels, fold_it), FeaturizeOutput(featurize_output.features, [], [])), 
+        joblib.dump((FoldData([], labels, fold_it), featurize_output), 
                 '%sdescriptors.joblib' %args.outprefix)
 
     paramdict = {}
