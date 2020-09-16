@@ -277,7 +277,7 @@ def mean_auc(data, methods, targets, noskill, sims, args):
                         sns.stripplot(x='Method', y='AUC',
                                 data=boxplot_df[boxplot_df['Target']==target],
                                 split=True, size=size,
-                                jitter = True, 
+                                jitter = 0.25, 
                                 linewidth=mew,
                                 alpha=0.7, 
                                 palette=palette, marker=marker,

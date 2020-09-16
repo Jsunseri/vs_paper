@@ -32,7 +32,7 @@ Rank Title Vina MW Target File RFScore-VS RFScore-4	dense_seed0_CNNaffinity dens
   > creating a summary file of predictions, typically per-compound 
 
     + make_summary.py creates output CSV files with columns that are 
-    LABEL PREDICTION TARGET METHOD, and the prediction is obtained by taking
+    LABEL PREDICTION TARGET TITLE METHOD, and the prediction is obtained by taking
     the maximum score after doing a groupby with respect to target and compound
  
   > calculating summary statistics by target

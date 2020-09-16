@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
 from sklearn.metrics import roc_curve, roc_auc_score
+from vspaper_settings import paper_palettes, name_map, reverse_map, swarm_markers, litpcba_order
 
 # this time let's look at both AUC and EF1% when we drop percentiles based on
 # variance, and let's also look at mean variance in each quartile

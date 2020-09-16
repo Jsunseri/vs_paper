@@ -16,7 +16,7 @@ from sklearn.metrics import roc_curve, roc_auc_score
 from sklearn.metrics import precision_recall_curve
 from sklearn.metrics import average_precision_score
 
-from vspaper_settings import paper_palettes, name_map, reverse_map, swarm_markers, litpcba_successes
+from vspaper_settings import paper_palettes, name_map, reverse_map, swarm_markers, litpcba_successes, litpcba_order
 
 # calculate early enrichment, EFsubset = {actives_selected/Nsubset} / {activestotal/Ntotal},
 # or equivalently {# actives in top R} / {# actives in entire library x R}
@@ -74,6 +74,11 @@ if __name__ == '__main__':
             'targets')
     parser.add_argument('-n', '--normalized', action='store_true', help='Plot '
             'normalized enrichment as well as standard enrichment')
+    parser.add_argument('-a', '--fix_axis', action='store_true', help='Only '
+            'used with normalized EF; if passed, fix axis boundaries to [0,1] '
+            'rather than shrinking to fit actual distribution (often much '
+            'smaller). If you do this, unique points per target will not be used '
+            'since it will probably be difficult to resolve them.')
     parser.add_argument('-r', '--ratio', nargs='+', default=[0.01],
             help='Specify one or more ratios to define the size of the subset '
             'for which enrichment will be computed')
@@ -142,32 +147,87 @@ if __name__ == '__main__':
                     encoding='utf-8', index=False, header=False)
         
         allEFs['Target'] = allEFs['Target'].replace('_', ' ', regex=True)
+        targets = allEFs['Target'].unique()
+        ntargets = len(targets)
+        success_info = True
+        for target in targets:
+            if target not in litpcba_successes:
+                success_info = False
+                break
+        if success_info:
+            targets = [t for t in litpcba_order if t in targets]
        
         plotcol = [EFname]
         if args.normalized:
             plotcol.append(normalized_name)
         for col in plotcol:
-            fig,ax = plt.subplots(figsize=(18,10))
+            size = (18,10)
+            fig,ax = plt.subplots(figsize=size)
             grouped = allEFs.groupby(['Method'], as_index=False)
             medians = grouped[col].median()
             medians.sort_values(by=col, inplace=True)
             order = medians['Method'].tolist()
-            sns.swarmplot(x='Method', y=col,
-                    data=allEFs, split=True, edgecolor='black', size=7,
-                    linewidth=0, palette = paper_palettes, ax=ax,
-                    alpha=0.7, order=order)
-            sns.boxplot(x='Method', y=col, data=allEFs,
-                    color='white', ax=ax, order=order)
-            if col == EFname:
-                ax_xlims = ax.get_xlim()
-                ax.plot([ax_xlims[0],ax_xlims[1]],[2, 2], linestyle='--', color='gray',
-                                    zorder=1, alpha=0.5)
+            if (col == normalized_name and args.normalized and not args.fix_axis and ntargets <= 20) or \
+                (col == EFname and ntargets <= 20):
+                leghands = []
+                for marker_id,target in enumerate(targets):
+                    if marker_id > 11:
+                        mew = 2
+                        size = 8
+                    else:
+                        mew = 0.5
+                        size = 6
+                    marker = swarm_markers[marker_id]
+                    sns.stripplot(x='Method', y=col,
+                            data=allEFs[allEFs['Target']==target],
+                            split=True, size=size,
+                            jitter = 0.25, 
+                            linewidth=mew,
+                            alpha=0.7, 
+                            palette=paper_palettes, marker=marker,
+                            ax=ax, order=order)
+                    if success_info:
+                        leghands.append(mlines.Line2D([], [], color='black',
+                            fillstyle='none', marker=marker, linestyle='None',
+                            mew=1,
+                            markersize=size, label='%s (%s)' %(target,' '.join(litpcba_successes[target]))))
+                    else:
+                        leghands.append(mlines.Line2D([], [], color='black',
+                            fillstyle='none', marker=marker, linestyle='None',
+                            mew=1,
+                            markersize=size, label=target))
+                sns.boxplot(x='Method', y=col, data=allEFs,
+                        color='white', ax=ax, order=order)
+                ax.legend(handles=leghands, bbox_to_anchor=(1.22, 1.025),
+                        frameon=True, loc='upper right')
+                if col == EFname:
+                    ax_xlims = ax.get_xlim()
+                    ax.plot([ax_xlims[0],ax_xlims[1]],[2, 2], linestyle='--', color='gray',
+                                        zorder=1, alpha=0.5)
+            else:
+                sns.swarmplot(x='Method', y=col,
+                        data=allEFs, split=True, edgecolor='black', size=7,
+                        linewidth=0, palette = paper_palettes, ax=ax,
+                        alpha=0.7, order=order)
+                sns.boxplot(x='Method', y=col, data=allEFs,
+                        color='white', ax=ax, order=order)
+                if col == EFname:
+                    ax_xlims = ax.get_xlim()
+                    ax.plot([ax_xlims[0],ax_xlims[1]],[2, 2], linestyle='--', color='gray',
+                                        zorder=1, alpha=0.5)
+                if args.normalized and args.fix_axis and col == normalized_name:
+                    lims = ax.get_ylim()
+                    ax.set_ylim(lims[0], 1 - lims[0])
             #sigh
             ax.set_ylabel(col)
             ax.set_xlabel('')
             fig.savefig('%s_boxplot.pdf' %(col.replace(' ', '_').replace('\\','')), bbox_inches='tight')
             
-            fig,ax = plt.subplots(figsize=(16, 30))
+            if ntargets > 25:
+                size = (16, 30)
+            else:
+                size = (16, 16)
+            fig,ax = plt.subplots(figsize=size)
             # sort by target with increasing median EFR%, then in the sorted grouped barplot we'll also sort by method 
             # within the target. this is all a pain in the butt, can it be done more efficiently?
             grouped = allEFs.groupby(['Target'], as_index=False)
@@ -179,23 +239,24 @@ if __name__ == '__main__':
             allEFs.sort_values(['tmp_rank'], ascending=True, inplace=True)
             allEFs.drop('tmp_rank', 1, inplace=True)
             
-            labels = allEFs['Target'].unique()
-            success_info = True
-            for target in labels:
-                if target not in litpcba_successes:
-                    success_info = False
-                    break
             if success_info:
-                allEFs['Target'] = allEFs['Target'].apply(lambda label: '%s\n(%s)' %(label,
-                    ' '.join(litpcba_successes[label])))
-            sns.stripplot(x=col, y="Target", hue="Method", data=allEFs,
+                allEFs['Target-withinfo'] = allEFs['Target'].apply(lambda x: '%s\n(%s)'
+                        %(x, ' '.join(litpcba_successes[x])))
+            sns.stripplot(x=col, y="Target-withinfo", hue="Method", data=allEFs,
                     palette=paper_palettes, alpha=0.7, size=10, ax=ax)
+            ax.set_ylabel('Target')
             if col == EFname:
                 ax_ylims = ax.get_ylim()
                 ax.plot([2, 2], [ax_ylims[0], ax_ylims[1]], linestyle='--', color='gray', lw=3,
                                     zorder=1, alpha=0.5)
                 ax.set_ylim(ax_ylims)
-            ax.legend(title='Method', frameon=True, ncol=3, bbox_to_anchor=(1.05, 1))
+            if args.normalized and args.fix_axis and col == normalized_name:
+                lims = ax.get_xlim()
+                ax.set_xlim(lims[0], 1 - lims[0])
+                ax.legend(title='Method', frameon=True, ncol=3, loc='upper_right')
+            else:
+                anchor = (1.05, 1)
+                ax.legend(title='Method', frameon=True, ncol=3, bbox_to_anchor=anchor)
             handles, labels = ax.get_legend_handles_labels()
             if set(labels) == set(core_methods):
                 indices = []
@@ -203,7 +264,7 @@ if __name__ == '__main__':
                     indices.append(labels.index(label))
                 handles = [handles[i] for i in indices]
                 labels = [labels[i] for i in indices]
-                ax.legend(handles, labels, title='Method', frameon=True, ncol=3, bbox_to_anchor=(1.3, 1))
+                ax.legend(handles, labels, title='Method', frameon=True, ncol=3, bbox_to_anchor=anchor)
             fig.savefig('%s_stripplot.pdf' %(col.replace(' ', '_').replace('\\','')), bbox_inches='tight')
    
         if args.barplot:
