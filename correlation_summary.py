@@ -46,7 +46,7 @@ def plot_intersection(df, palette, prefix='', out='', ylabel='', auc={}):
                 intersection_data['Target'].append(target.replace('_', ' '))
                 intersection_data['Intersection'].append(intersection)
                 if auc:
-                    intersection_data['AUC'].append(auc[(mn,target)])
+                    intersection_data['AUC'].append(auc[(on,target)])
 
     intersection_data = pd.DataFrame(intersection_data)
     grouped = intersection_data.groupby(['Method1'], as_index=False)
@@ -56,110 +56,30 @@ def plot_intersection(df, palette, prefix='', out='', ylabel='', auc={}):
     targets = list(intersection_data['Target'].unique()) # might have changed when we replaced underscores
     if len(set(targets).intersection(litpcba_order)) == len(targets):
         targets = [t for t in litpcba_order if t in targets]
-    # if few targets, make plots with unique symbol for each
-    if len(targets) <= 20:
+    y = 'AUC' if auc else None
+    mnames = list(intersection_data['Method1'].unique())
+    for method in mnames:
         fig,ax = plt.subplots(figsize=(12.8,9.6))
-        leghands = []
-        for marker_id,target in enumerate(targets):
-            if marker_id > 11:
-                mew = 2
-                size = 8
-            else:
-                mew = 0.5
-                size = 6
-            marker = swarm_markers[marker_id]
-            sns.stripplot(x='Method1', y='Intersection', hue='Method2',
-                    data=intersection_data[intersection_data['Target']==target],
-                    dodge=True, size=size,
-                    jitter = True, 
-                    linewidth=mew,
-                    alpha=0.6, 
-                    palette=palette, marker=marker,
-                    ax=ax, order=order)
-            leghands.append(mlines.Line2D([], [], color='black',
-                fillstyle='none', marker=marker, linestyle='None',
-                mew=1,
-                markersize=size, label=target))
-        sns.boxplot(x='Method1', y='Intersection', data=intersection_data,
-                color='white', ax=ax, order=order)
-        ax.legend(handles=leghands, bbox_to_anchor=(1.2, 0),
-                frameon=True, loc='lower right')
-        ax.set_ylabel('Per-Method Intersection %s' %ylabel)
-        ax.set_xlabel('')
-        # ax.set(ylim=(-0.025, 1.025))
-        fig.savefig('%sintersection%s_differentmarkers_boxplot.pdf' %(prefix,out), bbox_inches='tight')
-    if auc:
-        fig,ax = plt.subplots(figsize=(12.8,9.6))
-        threshold = 0.6
-        relevant = intersection_data.loc[intersection_data.AUC < threshold]
-        labels = relevant['Method1'].unique().tolist()
-        dummy = {}
-        dummy['Method1'] = []
-        dummy['Intersection'] = []
-        dummy['Method2'] = []
-        for mn in order:
-            if mn not in labels:
-                dummy['Method1'].append(mn)
-                dummy['Intersection'].append(-1)
-                dummy['Method2'].append('Vina') # doesn't really matter, just
-                                                # needs to be a valid method
-        if dummy['Method1']:
-            relevant = relevant.append(pd.DataFrame(dummy))
-        sns.stripplot(x='Method1', y='Intersection',  hue='Method2',
-                data=relevant, order=order, 
-                palette = palette, 
-                jitter = True, 
-                dodge=True, 
-                size=6, marker='o', 
-                linewidth=0.5, ax=ax,
-                alpha=0.6)
-        relevant = intersection_data.loc[intersection_data.AUC >= threshold]
-        labels = relevant['Method1'].unique().tolist()
-        dummy = {}
-        dummy['Method1'] = []
-        dummy['Intersection'] = []
-        dummy['Method2'] = []
-        for mn in order:
-            if mn not in labels:
-                dummy['Method1'].append(mn)
-                dummy['Intersection'].append(-1)
-                dummy['Method2'].append('Vina')
-        if dummy['Method1']:
-            relevant = relevant.append(pd.DataFrame(dummy))
-        sns.stripplot(x='Method1', y='Intersection', hue='Method2', 
-                data=relevant, order=order, 
-                palette = palette, 
-                jitter = True, 
-                dodge=True, 
-                size=7, marker='*', 
-                linewidth=0.5, ax=ax,
-                alpha=0.6)
-        sns.boxplot(x='Method1', y='Intersection', data=intersection_data,
-                color='white', ax=ax, order=order)
-        ax.set_ylabel('Per-Method Intersection %s' %ylabel)
-        ax.set_xlabel('')
-        # ax.set(ylim=(-0.025, 1.025))
-        handles,labels = ax.get_legend_handles_labels()
-        realnum = int(len(handles)/2)
-        box = ax.get_position()
-        ax.get_legend().remove()
-        fig.legend(handles[:realnum], labels[:realnum], bbox_to_anchor=(1.1,0.1), 
-                loc='lower right', frameon=True)
-        fig.savefig('%sintersection%s_boxplot.pdf' %(prefix,out), bbox_inches='tight')
-    if len(targets) > 20 and not auc:
-        fig,ax = plt.subplots(figsize=(12.8,9.6))
-        sns.stripplot(x='Method1', y='Intersection', hue='Method2',
-                data=intersection_data, dodge=True, size=6, jitter=True, 
-                linewidth=0.5, palette = palette, ax=ax,
-                alpha=0.6, order=order)
-        sns.boxplot(x='Method1', y='Intersection', data=intersection_data,
-                color='white', ax=ax, order=order)
-        ax.set_ylabel('Per-Method Intersection %s' %ylabel)
-        ax.set_xlabel('')
-        # ax.set(ylim=(-0.025, 1.025))
-        fig.savefig('%sintersection%s_boxplot.pdf' %(prefix,out), bbox_inches='tight')
+        if not auc:
+            sns.histplot(x='Intersection', y=y, hue='Method2',
+                    data=intersection_data.loc[intersection_data['Method1']==method],
+                    palette=palette, ax=ax, multiple='stack', discrete=True,
+                    edgecolor='white')
+        else:
+            sns.histplot(x='Intersection', y=y, hue='Method2',
+                    data=intersection_data.loc[intersection_data['Method1']==method],
+                    palette=palette, ax=ax, 
+                    edgecolor='white')
+        ax.set_xlabel('Size of Intersection %s' %ylabel)
+        ax.set_ylabel('Number of Targets')
+        legend = ax.get_legend()
+        legend.set_title('')
+        legend.set_bbox_to_anchor((1.25,1.025))
+        outm = method.replace('\n','_').replace(' ','_').replace('(','').replace(')','').replace(',','')
+        fig.savefig('%s%s_intersection%s_histplot.pdf' %(prefix,outm,out), bbox_inches='tight')
+        plt.close(fig)
 
-parser = argparse.ArgumentParser(description='Compute varintersections kinds of '
+parser = argparse.ArgumentParser(description='Compute various kinds of '
         'correlation/intersection between different methods')
 parser.add_argument('-f', '--files', nargs='+', help='Summary files to compute '
         'correlation from, layout should be TRUE PREDICTION TARGET TITLE METHOD')

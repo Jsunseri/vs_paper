@@ -845,6 +845,8 @@ def fit_all_models(X_train, y_train, paramdict={}, fold_it=[], njobs=1, seed=42,
             params = paramdict[methodname] if methodname in paramdict else {}
             if issubclass(model, RandomForestClassifier):
                 estimator = model(random_state=seed, n_jobs=njobs, class_weight='balanced_subsample', **params)
+            elif issubclass(model, SVC):
+                estimator = model(probability=True, **params)
             elif issubclass(model, no_init_params):
                 estimator = model(**params)
             elif issubclass(model, seedonly):
@@ -1154,7 +1156,9 @@ if __name__=='__main__':
                 methodname = methodnames[model]
                 params = paramdict[methodname] if methodname in paramdict else {}
                 print('Doing a single fit of %s with params %s' %(methodname,str(params)))
-                if issubclass(model, no_init_params):
+                if issubclass(model, SVC):
+                    estimator = model(probability=True, **params)
+                elif issubclass(model, no_init_params):
                     estimator = model(**params)
                 elif issubclass(model, seedonly):
                     estimator = model(random_state=args.seed, **params)
@@ -1195,6 +1199,8 @@ if __name__=='__main__':
                 scoring = 'roc_auc'
                 if issubclass(model, RandomForestClassifier):
                     estimator = model(random_state=args.seed, class_weight='balanced_subsample')
+                elif issubclass(model, SVC):
+                    estimator = model(probability=True, **params)
                 elif issubclass(model, no_init_params):
                     estimator = model()
                 else:
