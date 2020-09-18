@@ -17,7 +17,7 @@ from sklearn.metrics import roc_curve, roc_auc_score
 from sklearn.metrics import precision_recall_curve
 from sklearn.metrics import average_precision_score
 
-from vspaper_settings import paper_palettes, name_map, reverse_map, swarm_markers, litpcba_successes, litpcba_order
+from vspaper_settings import paper_palettes, backup_palette, name_map, reverse_map, swarm_markers, litpcba_successes, litpcba_order, marker_sizes
 
 # In matplotlib < 1.5, plt.fill_between does not have a 'step'
 # argument
@@ -45,11 +45,6 @@ def calc_auc_and_pr(target_and_method, target_predictions):
                     precision, recall)}
 
 def mean_auc(data, methods, targets, noskill, sims, args):
-        #use this palette if the methods don't correspond to methods used in
-        #any of the old papers, which have associated colors
-        backup_palette = sns.color_palette("hls", n_colors=len(methods),
-                desat=.5).as_hex()
-
         #overall_auc tracks and reports the average AUC across all targets
         #bytarget tracks and reports the AUC for each target for each method
         overall_stats = {}
@@ -110,7 +105,8 @@ def mean_auc(data, methods, targets, noskill, sims, args):
                             # tick.set_rotation(-90)
                     legend_dict[chosen_stat][plot_num] = sub_ax
                 method = t[1]
-                color = paper_palettes[method] if method in paper_palettes else backup_palette[methods.index(method)]
+                color = paper_palettes[method] if method in paper_palettes else \
+                        backup_palette[methods.index(method) % len(backup_palette)]
                 if chosen_stat == "AUC":
                     label = t[1]
                     legend_dict['AUC'][plot_num].plot(fpr, tpr, color=color,
@@ -212,14 +208,10 @@ def mean_auc(data, methods, targets, noskill, sims, args):
         auc_fig,auc_ax = plt.subplots(figsize=(12,10))
         aps_fig,aps_ax = plt.subplots()
         if args.make_boxplot:
-            if args.color_scheme:
-                palette = paper_palettes
-            else:
-                palette = {}
-                for method in methods:
-                    palette[method] = paper_palettes[method] if method in \
-                        paper_palettes else backup_palette[methods.index(method)]
-                # palette = backup_palette
+            palette = {}
+            for method in methods:
+                palette[method] = paper_palettes[method] if method in \
+                    paper_palettes else backup_palette[methods.index(method) % len(backup_palette)]
             boxplot_df = pd.DataFrame(boxplot_dat)
             #if we're doing the d3r paper figs, David wants a different marker
             #style for each target because having per-target ROC plots isn't
@@ -230,12 +222,11 @@ def mean_auc(data, methods, targets, noskill, sims, args):
                 leghands = []
                 for marker_id,target in enumerate(targets):
                     marker = swarm_markers[marker_id]
-                    if marker == '+' or marker == '*':
-                        mew = 10
-                        size = 15
+                    mew = 1
+                    if marker in marker_sizes:
+                        size = marker_sizes[marker]
                     else:
-                        mew = 0.5
-                        size = 10
+                        size = 12
                     sns.stripplot(x='Method', y='AUC',
                             data=boxplot_df[boxplot_df['Target']==target],
                             split=True, edgecolor='black', size=size, linewidth=0,
@@ -251,7 +242,8 @@ def mean_auc(data, methods, targets, noskill, sims, args):
                 auc_ax.legend(handles=leghands, loc='lower left', ncol=2, 
                         frameon=True)
                 sns.boxplot(x='Method', y='AUC', data=boxplot_df,
-                        color='white', order=cnnpaper_order, ax=auc_ax)
+                        color='white', order=cnnpaper_order, ax=auc_ax, 
+                        showfliers=False)
             else:
                 # ok actually for now do both if there are few targets
                 if len(targets) <= 20:
@@ -267,13 +259,12 @@ def mean_auc(data, methods, targets, noskill, sims, args):
                             success_info = False
                             break
                     for marker_id,target in enumerate(targets):
-                        if marker_id > 11:
-                            mew = 2
-                            size = 8
-                        else:
-                            mew = 0.5
-                            size = 6
                         marker = swarm_markers[marker_id]
+                        mew = 1
+                        if marker in marker_sizes:
+                            size = marker_sizes[marker]
+                        else:
+                            size = 12
                         sns.stripplot(x='Method', y='AUC',
                                 data=boxplot_df[boxplot_df['Target']==target],
                                 split=True, size=size,
@@ -293,8 +284,9 @@ def mean_auc(data, methods, targets, noskill, sims, args):
                                 mew=1,
                                 markersize=size, label=target))
                     sns.boxplot(x='Method', y='AUC', data=boxplot_df,
-                            color='white', ax=symbol_ax, order=order)
-                    symbol_ax.legend(handles=leghands, bbox_to_anchor=(1.3, 1),
+                            color='white', ax=symbol_ax, order=order, 
+                            showfliers=False)
+                    symbol_ax.legend(handles=leghands, bbox_to_anchor=(1.32, 1.025),
                             frameon=True, loc='upper right')
                     # symbol_ax.legend(handles=leghands, loc='lower right', ncol=2, 
                             # frameon=True)
@@ -313,9 +305,11 @@ def mean_auc(data, methods, targets, noskill, sims, args):
             medians.sort_values(by='AUC', inplace=True)
             order = medians['Method'].tolist()
             sns.boxplot(x='Method', y='AUC', data=boxplot_df,
-                    color='white', ax=auc_ax, order=order)
+                    color='white', ax=auc_ax, order=order, 
+                    showfliers=False)
             sns.boxplot(x='Method', y='APS', data=boxplot_df,
-                    color='white', ax=aps_ax)
+                    color='white', ax=aps_ax, 
+                    showfliers=False)
             if sims:
                 # evidently we can't pass a list/array of arrays as y and select specific x, 
 		# so instead we're going to set any excluded methods to a dummy

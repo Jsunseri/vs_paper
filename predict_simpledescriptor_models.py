@@ -106,6 +106,15 @@ if __name__ == '__main__':
             skip_indices = np.nonzero(extra_descs==0.0)[0].tolist()
     if args.descriptor_file:
         _,featurize_output = joblib.load(args.descriptor_file)
+        if args.extra_descriptors:
+            shape = featurize_output.features.shape
+            extra_shape = extra_descs.shape
+            assert shape[0] == extra_shape[0], ('First dim of descriptors and '
+            'extra_descriptors must match, but they are %d and %d' %(shape[0], extra_shape[0]))
+            allfeatures = np.append(featurize_output.features,
+                    extra_descs, axis=1)
+            featurize_output = FeaturizeOutput(allfeatures,
+                    featurize_output.failures, featurize_output.moltitles)
         features = featurize_output.features
         failures = featurize_output.failures
         moltitles = featurize_output.moltitles

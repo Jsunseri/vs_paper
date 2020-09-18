@@ -90,11 +90,22 @@ if __name__ == '__main__':
     # preds are LABELS PREDICTIONS TARGET TITLE METHOD 
     # only args are summary files
     cols = ['Label', 'Prediction', 'Target', 'Title', 'Method']
+    altcols = ['Label', 'Prediction', 'Target', 'Method']
     for R in args.ratio:
         pctg = int(R * 100)
         EFname = 'EF{}\%'.format(pctg)
         for i,fname in enumerate(args.summaryfiles):
-            df = pd.read_csv(fname, delim_whitespace=True, header=None, names=cols)
+            # some of the outputs don't have titles, so check real quick
+            with open(fname, 'r') as tmpf:
+                for line in tmpf:
+                    contents = line.split()
+                    if len(contents) == len(cols):
+                        usecols = cols
+                    elif len(contents) == len(altcols):
+                        usecols = altcols
+                    else:
+                        sys.exit('Unknown columns in input file %s' %fname)
+            df = pd.read_csv(fname, delim_whitespace=True, header=None, names=usecols)
             methods = df['Method'].unique()
             nmethods = methods.shape[0]
             assert nmethods == 1, '%s contains data from %d methods' %(fname, nmethods)
@@ -123,8 +134,10 @@ if __name__ == '__main__':
             if args.normalized:
                 normalized_name = 'Normalized EF{}\%'.format(pctg)
                 EFR[normalized_name] = EFR['na'] / EFR['min']
-            if method in ['Vina', 'Vinardo', 'RFScore-VS', 'RFScore-4'] or method not in name_map:
+            if method in ['Vina', 'Vinardo', 'RFScore-VS', 'RFScore-4']:
                 EFR['Method'] = method
+            elif method not in name_map:
+                EFR['Method'] = method.replace('_', '\n')
             else:
                 EFR['Method'] = name_map[method]
             if i > 0:
@@ -146,6 +159,14 @@ if __name__ == '__main__':
             thismethod.to_csv('%s_%s_bytarget'%(out_method,EFname.replace('\\','')), sep='\t',
                     encoding='utf-8', index=False, header=False)
         
+        palette = {}
+        backup_palette = sns.color_palette("hls", n_colors=len(methods),
+                desat=.5).as_hex()
+        lmethods = list(methods)
+        for method in lmethods:
+            palette[method] = paper_palettes[method] if method in \
+                paper_palettes else backup_palette[lmethods.index(method)]
+
         allEFs['Target'] = allEFs['Target'].replace('_', ' ', regex=True)
         targets = allEFs['Target'].unique()
         ntargets = len(targets)
@@ -171,12 +192,8 @@ if __name__ == '__main__':
                 (col == EFname and ntargets <= 20):
                 leghands = []
                 for marker_id,target in enumerate(targets):
-                    if marker_id > 11:
-                        mew = 2
-                        size = 8
-                    else:
-                        mew = 0.5
-                        size = 6
+                    mew = 1
+                    size = 16
                     marker = swarm_markers[marker_id]
                     sns.stripplot(x='Method', y=col,
                             data=allEFs[allEFs['Target']==target],
@@ -184,7 +201,7 @@ if __name__ == '__main__':
                             jitter = 0.25, 
                             linewidth=mew,
                             alpha=0.7, 
-                            palette=paper_palettes, marker=marker,
+                            palette=palette, marker=marker,
                             ax=ax, order=order)
                     if success_info:
                         leghands.append(mlines.Line2D([], [], color='black',
@@ -197,7 +214,8 @@ if __name__ == '__main__':
                             mew=1,
                             markersize=size, label=target))
                 sns.boxplot(x='Method', y=col, data=allEFs,
-                        color='white', ax=ax, order=order)
+                        color='white', ax=ax, order=order,
+                        showfliers=False)
                 ax.legend(handles=leghands, bbox_to_anchor=(1.22, 1.025),
                         frameon=True, loc='upper right')
                 if col == EFname:
@@ -207,10 +225,11 @@ if __name__ == '__main__':
             else:
                 sns.swarmplot(x='Method', y=col,
                         data=allEFs, split=True, edgecolor='black', size=7,
-                        linewidth=0, palette = paper_palettes, ax=ax,
+                        linewidth=0, palette = palette, ax=ax,
                         alpha=0.7, order=order)
                 sns.boxplot(x='Method', y=col, data=allEFs,
-                        color='white', ax=ax, order=order)
+                        color='white', ax=ax, order=order, 
+                        showfliers=False)
                 if col == EFname:
                     ax_xlims = ax.get_xlim()
                     ax.plot([ax_xlims[0],ax_xlims[1]],[2, 2], linestyle='--', color='gray',
@@ -242,9 +261,12 @@ if __name__ == '__main__':
             if success_info:
                 allEFs['Target-withinfo'] = allEFs['Target'].apply(lambda x: '%s\n(%s)'
                         %(x, ' '.join(litpcba_successes[x])))
-            sns.stripplot(x=col, y="Target-withinfo", hue="Method", data=allEFs,
-                    palette=paper_palettes, alpha=0.7, size=10, ax=ax)
-            ax.set_ylabel('Target')
+                sns.stripplot(x=col, y="Target-withinfo", hue="Method", data=allEFs,
+                        palette=palette, alpha=0.7, size=10, ax=ax)
+                ax.set_ylabel('Target')
+            else:
+                sns.stripplot(x=col, y="Target", hue="Method", data=allEFs,
+                        palette=palette, alpha=0.7, size=10, ax=ax)
             if col == EFname:
                 ax_ylims = ax.get_ylim()
                 ax.plot([2, 2], [ax_ylims[0], ax_ylims[1]], linestyle='--', color='gray', lw=3,
@@ -281,5 +303,5 @@ if __name__ == '__main__':
             plt.rc('figure', titlesize=BIGGER_SIZE) 
             
             fig,ax = plt.subplots(figsize=(500,80))
-            sortedgroupedbar(ax, x="Target", y=EFname, groupby="Method", data=allEFs, width=0.7, palette=paper_palettes)
+            sortedgroupedbar(ax, x="Target", y=EFname, groupby="Method", data=allEFs, width=0.7, palette=palette)
             fig.savefig('EF%d_targets_barplot.pdf' %pctg, bbox_inches='tight')

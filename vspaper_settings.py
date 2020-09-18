@@ -3,7 +3,8 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
 
-backup_palette = sns.color_palette("hls", n_colors=10, desat=.5).as_hex()
+backup_palette = ['#003f5c', '#665191', '#d45087', '#f95d6a', '#ffa600',
+        '#2f4b7c', '#a05195', '#ff7c43']
 
 paper_palettes = {}
 paper_palettes['Vina'] = '#000000' #the original CNN paper used ccbb44
@@ -27,7 +28,7 @@ paper_palettes['general_default2018-CNNaffinity-mean'] = '#2A11A0'
 paper_palettes['general_default2018_consensus'] = '#e1d2e9'
 paper_palettes['rf-score-vs'] = '#7ACFE5'
 paper_palettes['rf-score-4'] = '#024B78'
-paper_palettes['DUDE\ndescriptors,\nGeneral Set fit,\n'] = '#D4AD00'
+paper_palettes['DUD-E\ndescriptors,\nGeneral Set fit,\n'] = '#D4AD00'
 paper_palettes['MUV\ndescriptors,\nGeneral Set fit,\n'] = '#E7E000'
 
 paper_palettes['CNN'] = paper_palettes['CNN Scoring Rescore']
@@ -58,11 +59,6 @@ paper_palettes['RF MUV'] = backup_palette[3]
 paper_palettes['RF Refined\n(DUD-E features)'] = paper_palettes['RF DUD-E'] 
 paper_palettes['RF Refined\n(MUV features)'] = paper_palettes['RF MUV']
 
-simple_models = ['KNN', 'SVM', 'GBT', 'DT', 'RF', 'Lasso', 'GBT', 'Logistic']
-for mname in simple_models:
-    paper_palettes['DUDE\ndescriptors,\nGeneral Set fit,\n%s' %mname] = paper_palettes['DUDE\ndescriptors,\nGeneral Set fit,\n']
-    paper_palettes['MUV\ndescriptors,\nGeneral Set fit,\n%s' %mname] = paper_palettes['MUV\ndescriptors,\nGeneral Set fit,\n']
-
 name_map = {'dense-CNNscore-mean': 'Dense\n(Pose)', 'dense-CNNaffinity-mean': 'Dense\n(Affinity)',
         'crossdocked_default2018-CNNscore-mean': 'Cross-Docked\n(Pose)', 
         'crossdock_default2018-CNNscore-mean': 'Cross-Docked\n(Pose)', 
@@ -79,12 +75,6 @@ name_map = {'dense-CNNscore-mean': 'Dense\n(Pose)', 'dense-CNNaffinity-mean': 'D
         'general_default2018_consensus': 'General\n(Consensus)',
         'RF-Refined-DUDe': 'RF Refined\n(DUD-E features)',
         'RF-Refined-MUV': 'RF Refined\n(MUV features)', 
-        'MUVdesc_general_DT': 'MUV\ndescriptors,\nGeneral Set fit,\nDT',
-        'MUVdesc_general_GBT': 'MUV\ndescriptors,\nGeneral Set fit,\nGBT',
-        'MUVdesc_general_Lasso': 'MUV\ndescriptors,\nGeneral Set fit,\nLasso',
-        'DUDEdesc_general_DT': 'DUDE\ndescriptors,\nGeneral Set fit,\nDT',
-        'DUDEdesc_general_GBT': 'DUDE\ndescriptors,\nGeneral Set fit,\nGBT',
-        'DUDEdesc_general_Lasso': 'DUDE\ndescriptors,\nGeneral Set fit,\nLasso'
         }
 
 reverse_map = {'Dense\n(Pose)': 'dense-CNNscore-mean',
@@ -101,6 +91,47 @@ reverse_map = {'Dense\n(Pose)': 'dense-CNNscore-mean',
         'RF Refined\n(DUD-E features)': 'RF-Refined-DUDe', 
         'RF Refined\n(MUV features)': 'RF-Refined-MUV'
         }
+
+cnn_lookup = {
+        'generalScore': 'General\n(Pose)',
+        'generalAff': 'General\n(Affinity)',
+        'generalScore_generalAff': 'General (Pose)\nand\nGeneral (Affinity)'
+        }
+simple_models = ['KNN', 'SVM', 'GBT', 'DT', 'RF', 'Lasso', 'GBT', 'Logistic']
+for mname in simple_models:
+    paper_palettes['DUD-E\ndescriptors,\nGeneral Set fit,\n%s' %mname] = \
+                                paper_palettes['DUD-E\ndescriptors,\nGeneral Set fit,\n']
+    paper_palettes['MUV\ndescriptors,\nGeneral Set fit,\n%s' %mname] = \
+                                paper_palettes['MUV\ndescriptors,\nGeneral Set fit,\n']
+
+    name_map['MUVdesc_general_%s' %mname] = 'MUV\ndescriptors,\nGeneral Set fit,\n%s' %mname
+    reverse_map['MUV\ndescriptors,\nGeneral Set fit,\n%s' %mname] = 'MUVdesc_general_%s' %mname
+    name_map['DUDEdesc_general_%s' %mname] = 'DUD-E\ndescriptors,\nGeneral Set fit,\n%s' %mname
+    reverse_map['DUD-E\ndescriptors,\nGeneral Set fit,\n%s' %mname] = 'DUDEdesc_general_%s' %mname
+
+    name_map['MUVdesc_LITPCBAfit_noCNN_%s' %mname] = 'MUV\ndescriptors,\nLIT-PCBA fit,\n%s' %mname
+    reverse_map['MUV\ndescriptors,\nLIT-PCBA fit,\n%s' %mname] = 'MUVdesc_LITPCBAfit_noCNN_%s' %mname
+    name_map['DUDEdesc_LITPCBAfit_noCNN_%s' %mname] = 'DUD-E\ndescriptors,\nLIT-PCBA fit,\n%s' %mname
+    reverse_map['DUD-E\ndescriptors,\nLIT-PCBA fit,\n%s' %mname] = 'DUDEdesc_LITPCBAfit_noCNN_%s' %mname
+    name_map['MUVdesc_DUDEfit_noCNN_%s' %mname] = 'MUV\ndescriptors,\nDUD-E fit,\n%s' %mname
+    reverse_map['MUV\ndescriptors,\nDUD-E fit,\n%s' %mname] = 'MUVdesc_DUDEfit_noCNN_%s' %mname
+    name_map['DUDEdesc_DUDEfit_noCNN_%s' %mname] = 'DUD-E\ndescriptors,\nDUD-E fit,\n%s' %mname
+    reverse_map['DUD-E\ndescriptors,\nDUD-E fit,\n%s' %mname] = 'DUDEdesc_DUDEfit_noCNN_%s' %mname
+
+    name_map['MUVdesc_fingerprint_general_%s' %mname] = \
+                              'MUV\ndescriptors\nwith ECFP4 fingerprint\nGeneral Set fit,\n%s' %mname
+    reverse_map['MUV\ndescriptors\nwith ECFP4 fingerprint\nGeneral Set fit,\n%s' %mname] = \
+                              'MUVdesc_fingerprint_general_%s' %mname              
+    name_map['DUDEdesc_fingerprint_general_%s' %mname] = \
+                              'DUD-E\ndescriptors\nwith ECFP4 fingerprint\nGeneral Set fit,\n%s' %mname
+    reverse_map['DUD-E\ndescriptors\nwith ECFP4 fingerprint\nGeneral Set fit,\n%s' %mname] = \
+                              'DUDEdesc_fingerprint_general_%s' %mname              
+    for cnn in ['generalScore', 'generalAff', 'generalScore_generalAff']:
+        cnn_name = cnn_lookup[cnn]
+        name_map['MUVdesc_%s_%s' %(cnn,mname)] = 'MUV\ndescriptors\nwith\n%s,\n%s' %(cnn_name,mname)
+        reverse_map['MUV\ndescriptors\nwith\n%s,\n%s' %(cnn_name,mname)] = 'MUVdesc_%s_%s' %(cnn,mname)
+        name_map['DUDEdesc_%s_%s' %(cnn,mname)] = 'DUD-E\ndescriptors\nwith\n%s,\n%s' %(cnn_name,mname)
+        reverse_map['DUD-E\ndescriptors\nwith\n%s,\n%s' %(cnn_name,mname)] = 'DUDEdesc_%s_%s' %(cnn,mname)
 
 litpcba_successes = {
         'ADRB2': ['2D', '3D', 'SD'],
@@ -140,8 +171,26 @@ litpcba_order = [
         'VDR'
         ]
 
-swarm_markers = [r'$\clubsuit$', r'$\spadesuit$', '^', '>', '*',
-        's', 'o', '<', 'X', 'v', 'h', r'$\P$', '+', '1', '2', '3', '4', 'x']
+# u2665 == filled heart; u2602 == umbrella; u260e == telephone; 
+# u260f == telephone2;
+# u265b == chessqueen; u265e == chess knight; u265C == rook;
+# u266A == eighth note; u1f71b == silver; u231a == watch;
+# u263E == last quarter moon; u232C == benzene; u2328 == keyboard;
+# u2740 == fleuron1; u2702 == scissors; u270E == pencil1; u2767 == fleuron2;
+# u2710 == pencil2; u27b7 == arrow; u2708 == airplane; u274[4-6] == snowflakes;
+# u266E == naturalsign; u222F == surface integral; u269C == fleur-de-lys;
+# u29AC == angle; u27BF == [undefined but i like the dummy symbol]; u22CA == semijoin; 
+swarm_markers = [r'$\clubsuit$', '$\u2708$', '$\u263E$', '$\u265B$',
+        '$\u222F$','$\u27BF$', 
+        '$\u266A$', '$\u2602$', '$\u22CA$', '$\u27b7$', '$\u2702$', '$\u2744$', 
+        '$\u29AC$', '$\u266E$', '*', 
+        '^', '>', 's', 'o', '<', 'X', 'v', 'h', 
+        '+', '1', '2', '3', '4', 'x']
+
+marker_sizes = {
+        '$\u2702$': 16,
+        '$\u265B$': 16
+        }
 
 blue_star = mlines.Line2D([], [], color='black', marker='^', linestyle='None',
                                   markersize=10, label='Blue stars')
