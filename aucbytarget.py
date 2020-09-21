@@ -58,9 +58,9 @@ def mean_auc(data, methods, targets, noskill, sims, args):
         if args.make_boxplot:
             boxplot_dat = []
         total_plots = len(targets)
-        if total_plots > 9:
-            mpl.rcParams['xtick.labelsize'] = 10
-            mpl.rcParams['ytick.labelsize'] = 10
+        # if total_plots > 9:
+            # mpl.rcParams['xtick.labelsize'] = 10
+            # mpl.rcParams['ytick.labelsize'] = 10
         grid_width = int(math.ceil(math.sqrt(total_plots)))
         grid_length = int(math.ceil(float(total_plots)/grid_width))
         fig,ax = plt.subplots(figsize=(16,16))
@@ -222,7 +222,7 @@ def mean_auc(data, methods, targets, noskill, sims, args):
                 leghands = []
                 for marker_id,target in enumerate(targets):
                     marker = swarm_markers[marker_id]
-                    mew = 1
+                    mew = 0.5
                     if marker in marker_sizes:
                         size = marker_sizes[marker]
                     else:
@@ -235,7 +235,7 @@ def mean_auc(data, methods, targets, noskill, sims, args):
                             order=cnnpaper_order, ax=auc_ax)
                     leghands.append(mlines.Line2D([], [], color='black',
                         fillstyle='none', marker=marker, linestyle='None',
-                        mew=1,
+                        mew=0.5,
                         markersize=size, label=target))
                 # ax.legend(handles=leghands, bbox_to_anchor=(1,-0.2),
                         # frameon=True)
@@ -253,40 +253,82 @@ def mean_auc(data, methods, targets, noskill, sims, args):
                     medians.sort_values(by='AUC', inplace=True)
                     order = medians['Method'].tolist()
                     leghands = []
+                    # fill in info about targets and how we'll display them
                     success_info = True
                     for target in targets:
                         if target not in litpcba_successes:
                             success_info = False
                             break
+                    markerdict = {}
+                    mew = 0.5
                     for marker_id,target in enumerate(targets):
                         marker = swarm_markers[marker_id]
-                        mew = 1
                         if marker in marker_sizes:
                             size = marker_sizes[marker]
                         else:
-                            size = 12
-                        sns.stripplot(x='Method', y='AUC',
-                                data=boxplot_df[boxplot_df['Target']==target],
-                                split=True, size=size,
-                                jitter = 0.25, 
-                                linewidth=mew,
-                                alpha=0.7, 
-                                palette=palette, marker=marker,
-                                ax=symbol_ax, order=order)
+                            size = 14
+                        markerdict[target] = (marker,size)
                         if success_info:
                             leghands.append(mlines.Line2D([], [], color='black',
                                 fillstyle='none', marker=marker, linestyle='None',
-                                mew=1,
+                                mew=0.5, #linewidth=1, 
                                 markersize=size, label='%s (%s)' %(target,' '.join(litpcba_successes[target]))))
                         else:
                             leghands.append(mlines.Line2D([], [], color='black',
                                 fillstyle='none', marker=marker, linestyle='None',
-                                mew=1,
+                                mew=0.5,
                                 markersize=size, label=target))
+                    _,dummyax = plt.subplots(figsize=(12.8,9.6))
+                    plt.sca(dummyax)
+                    g = sns.swarmplot(x='Method', y='AUC',
+                            data=boxplot_df,
+                            dodge=True, size=27,
+                            linewidth=mew,
+                            alpha=0.7, 
+                            palette=palette, 
+                            edgecolors='none',
+                            order=order)
+                    artists = g.get_children()
+                    offsets = []
+                    for a in artists:
+                        if type(a) is mpl.collections.PathCollection:
+                            offsets.append(a.get_offsets().tolist())
+                    if not offsets:
+                        sys.exit('Cannot obtain offsets for scatterplot with unique per-target symbols')
+                    assert len(order) == len(offsets), ('List of methods is '
+                    'length %d but offsets is length %d' %(len(order),len(offsets)))
+                    plt.sca(symbol_ax)
+                    for mnum,points in enumerate(offsets):
+                        # each PathCollection will correspond to a method,
+                        # in the order specified by the "order" variable;
+                        # i thought 
+                        # the order within the collection corresponded to
+                        # the order the targets appear but that seems false so
+                        # i'm arduously looking it up instead
+                        m = order[mnum]
+                        t_order = boxplot_df.loc[boxplot_df['Method'] == m]['Target'].tolist()
+                        assert len(points) == len(t_order), ('%d points in PathCollection %d but boxplot_dat '
+                        'for method %s has %d points' %(len(points), mnum, m, len(t_order)))
+                        for point in points:
+                            auc = point[1]
+                            found = False
+                            for elem in boxplot_dat:
+                                if (elem['Method'] == m) and (round(elem['AUC'],3) == round(auc,3)):
+                                    t = elem['Target']
+                                    found = True
+                                    break
+                            if not found:
+                                sys.exit('Never found AUC %f for method %s' %(auc, m))
+                            marker,size = markerdict[t]
+                            symbol_ax.plot(point[0], auc, ms=size,
+                                    linestyle='None',
+                                    mew=mew, alpha=0.7,
+                                    mec='black',
+                                    color=palette[m], marker=marker, zorder=3)
                     sns.boxplot(x='Method', y='AUC', data=boxplot_df,
                             color='white', ax=symbol_ax, order=order, 
-                            showfliers=False)
-                    symbol_ax.legend(handles=leghands, bbox_to_anchor=(1.32, 1.025),
+                            showfliers=False, zorder=2)
+                    symbol_ax.legend(handles=leghands, bbox_to_anchor=(1.27, 1.015),
                             frameon=True, loc='upper right')
                     # symbol_ax.legend(handles=leghands, loc='lower right', ncol=2, 
                             # frameon=True)

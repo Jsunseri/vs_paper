@@ -88,7 +88,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # preds are LABELS PREDICTIONS TARGET TITLE METHOD 
-    # only args are summary files
     cols = ['Label', 'Prediction', 'Target', 'Title', 'Method']
     altcols = ['Label', 'Prediction', 'Target', 'Method']
     for R in args.ratio:

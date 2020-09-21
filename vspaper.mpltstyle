@@ -33,10 +33,12 @@ ytick.minor.size: 0
 
 # my parameters
 font.size: 24
-axes.titlesize: 20
+axes.titlesize: 22
 axes.labelsize: 20
-xtick.labelsize: 16
-ytick.labelsize: 16
-legend.fontsize: 16
+xtick.labelsize: 14
+ytick.labelsize: 18
+legend.fontsize: 14
+legend.title_fontsize: 18
 figure.titlesize: 24
-# text.usetex: True # TODO I'd like to avoid enabling this by default but having font cache probs
+# I'd like to avoid enabling this by default, leaving it here to toggle on in case of emergency
+# text.usetex: True 

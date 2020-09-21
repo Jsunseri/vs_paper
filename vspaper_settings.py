@@ -75,6 +75,7 @@ name_map = {'dense-CNNscore-mean': 'Dense\n(Pose)', 'dense-CNNaffinity-mean': 'D
         'general_default2018_consensus': 'General\n(Consensus)',
         'RF-Refined-DUDe': 'RF Refined\n(DUD-E features)',
         'RF-Refined-MUV': 'RF Refined\n(MUV features)', 
+        'Vina': 'Vina'
         }
 
 reverse_map = {'Dense\n(Pose)': 'dense-CNNscore-mean',
@@ -180,10 +181,13 @@ litpcba_order = [
 # u2710 == pencil2; u27b7 == arrow; u2708 == airplane; u274[4-6] == snowflakes;
 # u266E == naturalsign; u222F == surface integral; u269C == fleur-de-lys;
 # u29AC == angle; u27BF == [undefined but i like the dummy symbol]; u22CA == semijoin; 
-swarm_markers = [r'$\clubsuit$', '$\u2708$', '$\u263E$', '$\u265B$',
-        '$\u222F$','$\u27BF$', 
-        '$\u266A$', '$\u2602$', '$\u22CA$', '$\u27b7$', '$\u2702$', '$\u2744$', 
-        '$\u29AC$', '$\u266E$', '*', 
+swarm_markers = [r'$\clubsuit$', r'$\spadesuit$', '$\u2665$', '*', 
+        '$\u265B$', '$\u265E$', '$\u265C$',
+        '$\u2602$', '$\u266A$', '$\u2702$', 
+        '$\u2708$', '$\u2744$', '$\u27b7$', 
+        '$\u29AC$', '$\u222F$', '$\u263E$', 
+        '$\u22CA$', 
+        '$\u266E$', '$\u27BF$', 
         '^', '>', 's', 'o', '<', 'X', 'v', 'h', 
         '+', '1', '2', '3', '4', 'x']
 
