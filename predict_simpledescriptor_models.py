@@ -114,7 +114,7 @@ if __name__ == '__main__':
         assert extra_descs.shape[0] == len(labels), 'Extra descriptor file should have the same number of examples as the input but has %s instead of %s' %(extra_descs.shape[0], len(labels))
         if args.skip_zeros:
             skip_indices = np.nonzero(extra_descs==0.0)[0].tolist()
-    if not args.extra_only:
+    if args.extra_only:
         featurize_output = FeaturizeOutput(extra_descs, [], [])
         features = featurize_output.features
         failures = featurize_output.failures

@@ -1,10 +1,4 @@
 Wed Jul  8 18:02:20 EDT 2020
-- this directory is a work in progress at the moment. many of these scripts had
-  initial versions in one of the subdirectories of ~jss97/datasets and they may
-  have been special-cased, copied around and special-cased again, etc. here i'm
-  attempting to make unified versions that are modular and therefore more
-  general-purpose than what may have existed before. 
-
 - here I'll try to describe a general workflow, identifying the relevant
   scripts and any assumptions they make about associated inputs: 
 
@@ -40,3 +34,7 @@ Rank Title Vina MW Target File RFScore-VS RFScore-4	dense_seed0_CNNaffinity dens
     + aucbytarget.py creates by-target grids of plots showing ROC curves for
     all methods whose ${methodname}.summary files are provided, as well as
     boxplots of AUCs
+
+    + early_enrichment.py creates by-target barplots and by-method boxplots of
+    early enrichment and normalized early enrichment; the user can specify the
+    ratio but it defaults to 1%
