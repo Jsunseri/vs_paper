@@ -26,23 +26,6 @@ def calc_auc(target_predictions):
     fpr,tpr,_ = roc_curve(y_true,y_score)
     return roc_auc_score(y_true,y_score)
 
-plt.style.use('seaborn-white')
-SMALL_SIZE=10
-MEDIUM_SIZE=12
-BIGGER_SIZE=12
-SUBFIG_SIZE=12
-
-plt.rc('font', size=BIGGER_SIZE)         # controls default text sizes
-plt.rc('axes', titlesize=MEDIUM_SIZE)    # fontsize of the axes title
-plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
-plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
-plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
-plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
-plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
-
-mpl.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
-mpl.rc('text', usetex=True)
-
 newmethods = ["dense", "crossdock_default2018", "general_default2018"]
 ensembles = {}
 for n in newmethods:

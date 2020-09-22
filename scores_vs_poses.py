@@ -7,74 +7,7 @@ mpl.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.stats import pearsonr
-
-plt.style.use('seaborn-white')
-SMALL_SIZE=10
-MEDIUM_SIZE=12
-BIGGER_SIZE=12
-SUBFIG_SIZE=12
-
-plt.rc('font', size=BIGGER_SIZE)          # controls default text sizes
-plt.rc('axes', titlesize=MEDIUM_SIZE)     # fontsize of the axes title
-plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
-plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
-plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
-plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
-plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
-
-mpl.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
-mpl.rc('text', usetex=True)
-sns.set_palette(sns.color_palette("muted"))
-
-paper_palettes = {}
-paper_palettes['Vina'] = '#000000' #the original CNN paper used ccbb44
-paper_palettes['CSAR'] = '#332288'
-paper_palettes['DUD-E'] = '#4477aa'
-paper_palettes['2:1'] = '#88ccee'
-paper_palettes['CNN Affinity Rescore'] = '#6da4c0'
-paper_palettes['CNN Affinity Refine'] = '#332288'
-paper_palettes['CNN Scoring Rescore'] = '#ffd91c'
-paper_palettes['CNN Scoring Refine'] = '#877b25'
-paper_palettes['Experiment'] = '#498540'
-paper_palettes['CNN'] = '#ffd91c'
-paper_palettes['CNNscore'] = '#ffd91c'
-paper_palettes['CNNaffinity'] = '#6da4c0'
-paper_palettes['Overlap'] = sns.color_palette()[0]
-paper_palettes['Overlap L2'] = sns.color_palette()[-1]
-paper_palettes['Overlap Mult'] = sns.color_palette()[2]
-paper_palettes['Overlap Sum'] = sns.color_palette()[4]
-paper_palettes['Vinardo'] = '#BDC3C7'
-paper_palettes['dense-CNNscore-mean'] = '#82E0AA'
-paper_palettes['Dense\n(Pose)'] = '#82E0AA'
-paper_palettes['dense-CNNaffinity-mean'] = '#28B463'
-paper_palettes['Dense\n(Affinity)'] = '#28B463'
-paper_palettes['dense-aff-mean'] = '#28B463'
-paper_palettes['dense_consensus'] = '#cdf2dd'
-paper_palettes['Dense\n(Consensus)'] = '#cdf2dd'
-paper_palettes['crossdock_default2018-CNNscore-mean'] = '#E59866'
-paper_palettes['Cross-Docked\n(Pose)'] = '#E59866'
-paper_palettes['crossdock_default2018-CNNaffinity-mean'] = '#BA4A00'
-paper_palettes['crossdocked2018-CNNaffinity-mean'] = '#BA4A00'
-paper_palettes['Cross-Docked\n(Affinity)'] = '#BA4A00'
-paper_palettes['crossdock_default2018_consensus'] = '#f0c4a7'
-paper_palettes['Cross-Docked\n(Consensus)'] = '#f0c4a7'
-paper_palettes['general_default2018-CNNscore-mean'] = '#b788cb'
-paper_palettes['General\n(Pose)'] = '#b788cb'
-paper_palettes['general_default2018-CNNaffinity-mean'] = '#9B59B6'
-paper_palettes['General\n(Affinity)'] = '#9B59B6'
-paper_palettes['generalset2018-CNNaffinity-mean'] = '#9B59B6'
-paper_palettes['general_default2018_consensus'] = '#e1d2e9'
-paper_palettes['General\n(Consensus)'] = '#e1d2e9'
-paper_palettes['rf-score-vs'] = '#D98880'
-paper_palettes['rf-score-4'] = '#A93226'
-paper_palettes['Dense (Pose)'] = '#82E0AA'
-paper_palettes['Dense (Affinity)'] = '#28B463'
-paper_palettes['Cross-Docked\n(Pose)'] = '#E59866'
-paper_palettes['Cross-Docked\n(Affinity)'] = '#BA4A00'
-paper_palettes['General (Pose)'] = '#b788cb'
-paper_palettes['General (Affinity)'] = '#9B59B6'
-paper_palettes['RFScore-VS'] = '#5DADE2'
-paper_palettes['RFScore-4'] = '#2874A6'
+from vspaper_settings import paper_palettes, name_map
 
 scorecolors = {'inactive': sns.color_palette()[3], 'active': sns.color_palette()[2]}
 
@@ -95,21 +28,6 @@ def make_plot(df, cols, figname):
             g.axes[i,j].set(ylim=(df[cols[i]].min(), df[cols[i]].max()))
             g.axes[i,j].set(xlim=(df[cols[j]].min(), df[cols[j]].max()))
     g.savefig(figname, dpi=300, bbox_inches='tight')
-
-name_map = {'dense-CNNscore-mean': 'Dense\n(Pose)', 'dense-CNNaffinity-mean': 'Dense\n(Affinity)',
-        'crossdocked_default2018-CNNscore-mean': 'Cross-Docked\n(Pose)', 
-        'crossdock_default2018-CNNscore-mean': 'Cross-Docked\n(Pose)', 
-        'crossdock_default2018-CNNaffinity-mean': 'Cross-Docked\n(Affinity)', 
-        'general_default2018-CNNscore-mean': 'General\n(Pose)',
-        'general_default2018-CNNaffinity-mean': 'General\n(Affinity)', 
-        'rfscore-vs': 'RFScore-VS',
-        'rf-score-4': 'RFScore-4',
-        'dense-aff-mean': 'Dense\n(Affinity)',
-        'crossdocked2018-CNNaffinity-mean': 'Cross-Docked\n(Affinity)', 
-        'generalset2018-CNNaffinity-mean': 'General\n(Affinity)', 
-        'dense_consensus': 'Dense\n(Consensus)', 
-        'crossdock_default2018_consensus': 'Cross-Docked\n(Consensus)', 
-        'general_default2018_consensus': 'General\n(Consensus)'}
 
 # load preds df
 df = pickle.load(open('preds_df.cpickle', 'rb'))

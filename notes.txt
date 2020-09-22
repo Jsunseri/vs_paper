@@ -1,4 +1,3 @@
-Wed Jul  8 18:02:20 EDT 2020
 - here I'll try to describe a general workflow, identifying the relevant
   scripts and any assumptions they make about associated inputs: 
 
@@ -28,8 +27,12 @@ Rank Title Vina MW Target File RFScore-VS RFScore-4	dense_seed0_CNNaffinity dens
     + make_summary.py creates output CSV files with columns that are 
     LABEL PREDICTION TARGET TITLE METHOD, and the prediction is obtained by taking
     the maximum score after doing a groupby with respect to target and compound
+
+    + summarize_cnn_alltrain_predictions.py is an old version of this type of
+    script that just does this for the CNN models, probably deprecated but
+    keeping around just in case
  
-  > calculating summary statistics by target
+  > calculating summary data
     
     + aucbytarget.py creates by-target grids of plots showing ROC curves for
     all methods whose ${methodname}.summary files are provided, as well as
@@ -38,3 +41,59 @@ Rank Title Vina MW Target File RFScore-VS RFScore-4	dense_seed0_CNNaffinity dens
     + early_enrichment.py creates by-target barplots and by-method boxplots of
     early enrichment and normalized early enrichment; the user can specify the
     ratio but it defaults to 1%
+
+    + auc_stripplot.py create by-target stripplots of AUC, was basically a
+    one-off that I didn't end up using
+ 
+    + correlation_summary.py computes correlations between predictions for
+    different methods, over all compounds as well as conditioned on class; it
+    also computes and plots the intersection between the highest-ranked
+    compounds between different methods
+
+    + scores_vs_poses.py does the grid of plots showing score distribution and
+    correlation per class between all methods
+
+    + pose_variance_sensitivity.py calculates AUC and EF1% when dropping
+    percentiles based on variance as well as mean variance in each quartile
+
+  > DeepChem scripts
+
+    + train_atomicconv.py should in theory train a DeepChem 3D Atomic
+    Convolution model, but I've been having problems with it so it's a WIP
+
+  > scripts for simple descriptor models
+
+    + train_simpledescriptor_models.py fits a set of available models from
+    sklearn to input data; it can also do cross validation (with types files
+    provided as folds or doing a random split) and hyperparameter optimization
+
+    + predict_simpledescriptor_models.py uses trained simple descriptor models,
+    provided as joblib files, to make predictions for an input types file
+
+    + dump_fingerprints.py dumps a CSV of the fingerprints for the molecules in
+    an input types file
+
+    + make_extra_summary_features.py dumps a CSV of additional features that
+    match the order of a types file, used e.g. for matching the CNN predictions
+    to the types files used to train/test simple descriptor models
+
+    + make_moltitle_exclusionlist.py will output the list of file+molname
+    instances B\A, given A=summaryfile and B=typesfile
+
+  > figure style-related scripts
+
+    + vspaper.mpltstyle is a matplotlib stylesheet that modifies a few things
+    from the Seaborn-White parameters
+
+    + vspaper_settings.py includes palettes, publication-ready names for
+    methods, additional info that is sometimes included with targets in
+    figures, markers chosen for swarmplots, and it also loads the stylesheet
+    when it's included
+
+  > accessory scripts for other tasks
+
+    + extract_pdbbind_data.py generate summary data from a PDBBind index file
+
+    + vsplot_summary_fordavid.py compares Vina and a user-provided CNN model
+    (for the submission I used the Dense CNNaffinity model) with AUC boxplots
+    on DUD-E and LIT-PCBA
