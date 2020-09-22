@@ -1050,6 +1050,9 @@ if __name__=='__main__':
             help='Provide precomputed descriptors for the mols')
     parser.add_argument('-e', '--extra_descriptors', nargs='*', default=[], 
             help='Provide additional files with precomputed descriptors')
+    parser.add_argument('-eo', '--extra_only', action='store_true', help='Only '
+            'fit to user-provided descriptors, without computing the DUD-E or '
+            'MUV desciptors')
     parser.add_argument('-r', '--data_root', nargs='*', default=[], 
             help='Common path to join with molnames to generate full location '
             'of files; can pass multiple, which will be tried in order')
@@ -1082,6 +1085,13 @@ if __name__=='__main__':
             'must specify "modelname":str and "params":dict')
     args = parser.parse_args()
 
+    if args.extra_only:
+        assert args.extra_descriptors, ('Fitting exclusively to user-provided descriptors '
+        'was requested, but no user-provided descriptors were provided')
+        if args.descriptor_file:
+            print('Descriptor file was provided, but extra_only was passed so '
+                    'these descriptors will not be used.')
+
     # include features from user-provided file of precomputed features, if available
     extra_descs = None
     desclist = []
@@ -1090,31 +1100,36 @@ if __name__=='__main__':
     if desclist:
         extra_descs = np.hstack([extra_df.to_numpy() for extra_df in desclist])
 
-    # read in precomputed descriptors to save time if provided (hopefully this
-    # saves time)
-    if args.descriptor_file:
-        print('Reading in precomputed descriptors; additional descriptors/mols '
-                'will not be included, but extra descriptors will be '
-                'concatenated\n')
-        fold_data,featurize_output = joblib.load(args.descriptor_file)
-        if args.extra_descriptors:
-            shape = featurize_output.features.shape
-            extra_shape = extra_descs.shape
-            assert shape[0] == extra_shape[0], ('First dim of descriptors and '
-            'extra_descriptors must match, but they are %d and %d' %(shape[0], extra_shape[0]))
-            allfeatures = np.append(featurize_output.features,
-                    extra_descs, axis=1)
-            featurize_output = FeaturizeOutput(allfeatures,
-                    featurize_output.failures, featurize_output.moltitles)
-    else:
-        assert args.prefix, 'Need fold files if precomputed descriptors are not provided'
+    if args.extra_only:
+        featurize_output = FeaturizeOutput(extra_descs, [], [])
         fold_data = find_and_parse_folds(args.prefix, args.foldnums, args.columns, args.use_all)
-        if args.extra_descriptors:
-            assert extra_descs.shape[0] == len(fold_data.labels), 'Extra descriptor file should have the same number of examples as the folds but has %s instead of %s' %(extra_descs.shape[0], len(fold_data.labels))
-        # TODO: multiprocess this? would need to rewrite how fold iteratable is made
-        print('Generating descriptors...\n')
-        featurize_output = generate_descriptors(fold_data.fnames, args.data_root,
-                args.method, args.use_babel, extra_descs, args.take_first)
+        assert extra_descs.shape[0] == len(fold_data.labels), 'Extra descriptor file should have the same number of examples as the folds but has %s instead of %s' %(extra_descs.shape[0], len(fold_data.labels))
+    else:
+        # read in precomputed descriptors if provided (hopefully this
+        # saves time)
+        if args.descriptor_file:
+            print('Reading in precomputed descriptors; additional descriptors/mols '
+                    'will not be included, but extra descriptors will be '
+                    'concatenated\n')
+            fold_data,featurize_output = joblib.load(args.descriptor_file)
+            if args.extra_descriptors:
+                shape = featurize_output.features.shape
+                extra_shape = extra_descs.shape
+                assert shape[0] == extra_shape[0], ('First dim of descriptors and '
+                'extra_descriptors must match, but they are %d and %d' %(shape[0], extra_shape[0]))
+                allfeatures = np.append(featurize_output.features,
+                        extra_descs, axis=1)
+                featurize_output = FeaturizeOutput(allfeatures,
+                        featurize_output.failures, featurize_output.moltitles)
+        else:
+            assert args.prefix, 'Need fold files if precomputed descriptors are not provided'
+            fold_data = find_and_parse_folds(args.prefix, args.foldnums, args.columns, args.use_all)
+            if args.extra_descriptors:
+                assert extra_descs.shape[0] == len(fold_data.labels), 'Extra descriptor file should have the same number of examples as the folds but has %s instead of %s' %(extra_descs.shape[0], len(fold_data.labels))
+            # TODO: multiprocess this? would need to rewrite how fold iteratable is made
+            print('Generating descriptors...\n')
+            featurize_output = generate_descriptors(fold_data.fnames, args.data_root,
+                    args.method, args.use_babel, extra_descs, args.take_first)
    
     if featurize_output.failures: 
         print('Removing failed examples\n')

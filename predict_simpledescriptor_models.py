@@ -60,6 +60,9 @@ if __name__ == '__main__':
             'to save time')
     parser.add_argument('-e', '--extra_descriptors', nargs='*', default=[], 
             help='Provide additional files with precomputed descriptors')
+    parser.add_argument('-eo', '--extra_only', action='store_true', help='Only '
+            'fit to user-provided descriptors, without computing the DUD-E or '
+            'MUV desciptors')
     parser.add_argument('-o', '--outprefix', type=str, default='', 
             help='Output basename for prediction file')
     parser.add_argument('-b', '--use_babel', action='store_true', help='Use '
@@ -72,6 +75,13 @@ if __name__ == '__main__':
     parser.add_argument('--take_first', action='store_true',
             help='Take first mol from multi-model files.')
     args = parser.parse_args()
+
+    if args.extra_only:
+        assert args.extra_descriptors, ('Fitting exclusively to user-provided descriptors '
+        'was requested, but no user-provided descriptors were provided')
+        if args.descriptor_file:
+            print('Descriptor file was provided, but extra_only was passed so '
+                    'these descriptors will not be used.')
 
     for pfile in args.pickle:
         assert os.path.isfile(pfile), "%s does not exist" %pfile
@@ -104,26 +114,32 @@ if __name__ == '__main__':
         assert extra_descs.shape[0] == len(labels), 'Extra descriptor file should have the same number of examples as the input but has %s instead of %s' %(extra_descs.shape[0], len(labels))
         if args.skip_zeros:
             skip_indices = np.nonzero(extra_descs==0.0)[0].tolist()
-    if args.descriptor_file:
-        _,featurize_output = joblib.load(args.descriptor_file)
-        if args.extra_descriptors:
-            shape = featurize_output.features.shape
-            extra_shape = extra_descs.shape
-            assert shape[0] == extra_shape[0], ('First dim of descriptors and '
-            'extra_descriptors must match, but they are %d and %d' %(shape[0], extra_shape[0]))
-            allfeatures = np.append(featurize_output.features,
-                    extra_descs, axis=1)
-            featurize_output = FeaturizeOutput(allfeatures,
-                    featurize_output.failures, featurize_output.moltitles)
+    if not args.extra_only:
+        featurize_output = FeaturizeOutput(extra_descs, [], [])
         features = featurize_output.features
         failures = featurize_output.failures
         moltitles = featurize_output.moltitles
     else:
-        print('Generating descriptors\n')
-        # TODO: can infer which descriptors to use from model, since it was fit
-        # with one of the descriptor sets, instead of making the user pass it
-        features, failures, moltitles = generate_descriptors(mol_list,
-                args.data_root, args.descriptors, args.use_babel, extra_descs, args.take_first)
+        if args.descriptor_file:
+            _,featurize_output = joblib.load(args.descriptor_file)
+            if args.extra_descriptors:
+                shape = featurize_output.features.shape
+                extra_shape = extra_descs.shape
+                assert shape[0] == extra_shape[0], ('First dim of descriptors and '
+                'extra_descriptors must match, but they are %d and %d' %(shape[0], extra_shape[0]))
+                allfeatures = np.append(featurize_output.features,
+                        extra_descs, axis=1)
+                featurize_output = FeaturizeOutput(allfeatures,
+                        featurize_output.failures, featurize_output.moltitles)
+            features = featurize_output.features
+            failures = featurize_output.failures
+            moltitles = featurize_output.moltitles
+        else:
+            print('Generating descriptors\n')
+            # TODO: can infer which descriptors to use from model, since it was fit
+            # with one of the descriptor sets, instead of making the user pass it
+            features, failures, moltitles = generate_descriptors(mol_list,
+                    args.data_root, args.descriptors, args.use_babel, extra_descs, args.take_first)
     if skip_indices:
         features = np.delete(features, skip_indices, 0)
         if moltitles:
