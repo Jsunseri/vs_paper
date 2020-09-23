@@ -15,8 +15,7 @@ parser.add_argument('-p', '--pickle', type=str, required=True, help='Pandas '
 args = parser.parse_args()
 
 df = pickle.load(open(args.pickle, 'rb'))
-newmethods = ["dense", "crossdock_default2018", "general_default2018"]
-cols = list(df)
+cnns = ["dense", "crossdock_default2018", "general_default2018"]
 
 # our "composite" predictions will be:
 #
@@ -31,7 +30,7 @@ cols = list(df)
 # (5) score_mean.div(score_std), taking the max wrt the mean and then using this 
 #     recalibrated score as the pred
 outpreds = []
-for d in newmethods:
+for d in cnns:
     means = []
     for stype in ['CNNscore', 'CNNaffinity']:
         print('Computing mean and stdev for %s-%s' %(d,stype))
@@ -57,21 +56,16 @@ for out in outpreds:
     outdf.to_csv(path_or_buf='%s.summary' %out, sep=' ', header=False,
             index=False, columns=['label', out, 'Target', 'Title', 'Method'])
 
-# now (3), (4), (5)
-for d in newmethods:
+# now (5), (4), and (3)
+for d in cnns:
     for stype in ['CNNscore', 'CNNaffinity']:
         mname = d + '-' + stype + '-mean'
         scoregap = d + '-' + stype + '-scoregap'
         meanmax = d + '-' + stype + '-mean_max'
         meanmin = d + '-' + stype + '-mean_min'
-        if stype == 'CNNscore':
-            outdf = df.loc[grouped[mname].idxmax()]
-            outdf = outdf.merge(df.loc[grouped[mname].idxmin()], on=['label',
-                'Target', 'Title'], sort=False, suffixes=('_max', '_min'))
-        else: 
-            outdf = outdf.merge(df.loc[grouped[mname].idxmax()], on=['label', 'Target', 'Title'], sort=False)
-            outdf = outdf.merge(df.loc[grouped[mname].idxmin()], on=['label',
-                'Target', 'Title'], sort=False, suffixes=('_max', '_min'))
+        outdf = df.loc[grouped[mname].idxmax()]
+        outdf = outdf.merge(df.loc[grouped[mname].idxmin()], on=['label',
+            'Target', 'Title'], sort=False, suffixes=('_max', '_min'))
         # (5)
         recalibrated_score = d + '-' + stype + '-mean-div-std'
         outname = d + '-' + stype + 'maxthen-mean-div-std'
@@ -86,8 +80,13 @@ for d in newmethods:
         outdf.to_csv(path_or_buf='%s.summary' %scoregap, sep=' ', header=False,
                 index=False, columns=['label', scoregap, 'Target', 'Title', 'Method'])
     # (3)
+    scoremean = d + '-CNNscore-mean'
+    affmean = d + '-CNNaffinity-mean'
+    outdf = df.loc[grouped[scoremean].idxmax()][['label', scoremean, 'Target', 'Title']]
+    outdf = outdf.merge(df.loc[grouped[affmean].idxmax()], 
+            on=['label', 'Target', 'Title'], sort=False)
     predlevel_product = d + '-CNNscore_CNNaffinity-predlevel_product'
-    outdf[predlevel_product] = outdf[d + '-CNNscore-mean'] * outdf[d + '-CNNaffinity-mean']
+    outdf[predlevel_product] = outdf[scoremean] * outdf[affmean]
     outdf['Method'] = predlevel_product
     print('Writing out %s' %predlevel_product)
     outdf.to_csv(path_or_buf='%s.summary' %predlevel_product, sep=' ', header=False,

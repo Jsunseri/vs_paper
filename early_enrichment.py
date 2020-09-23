@@ -16,7 +16,7 @@ from sklearn.metrics import roc_curve, roc_auc_score
 from sklearn.metrics import precision_recall_curve
 from sklearn.metrics import average_precision_score
 
-from vspaper_settings import paper_palettes, name_map, reverse_map, swarm_markers, litpcba_successes, litpcba_order
+from vspaper_settings import paper_palettes, backup_palette, name_map, reverse_map, swarm_markers, litpcba_successes, litpcba_order
 
 # calculate early enrichment, EFsubset = {actives_selected/Nsubset} / {activestotal/Ntotal},
 # or equivalently {# actives in top R} / {# actives in entire library x R}
@@ -44,7 +44,6 @@ def sortedgroupedbar(ax, x,y, groupby, data=None, width=0.7, palette=None, **kwa
     step = width/ngroups
     if not palette:
         palette = {}
-        backup_palette = sns.color_palette("hls", n_colors=ngroups, desat=.5).as_hex()
         for idx,name in enumerate(groupnames):
             palette[name] = backup_palette[idx]
     for xi,grp in df.groupby(groupby):
@@ -92,7 +91,7 @@ if __name__ == '__main__':
     altcols = ['Label', 'Prediction', 'Target', 'Method']
     for R in args.ratio:
         pctg = int(R * 100)
-        EFname = 'EF{}\%'.format(pctg)
+        EFname = 'EF{}%'.format(pctg) # if you set usetex=True you probably have to escape this percent symbol
         for i,fname in enumerate(args.summaryfiles):
             # some of the outputs don't have titles, so check real quick
             with open(fname, 'r') as tmpf:
@@ -130,6 +129,7 @@ if __name__ == '__main__':
 
             EFR = actives.merge(enrich_actives, on='Target')
             EFR[EFname] = EFR['na'] / (EFR['NA'] * R)
+            normalized_name = ''
             if args.normalized:
                 normalized_name = 'Normalized EF{}\%'.format(pctg)
                 EFR[normalized_name] = EFR['na'] / EFR['min']
@@ -159,8 +159,6 @@ if __name__ == '__main__':
                     encoding='utf-8', index=False, header=False)
         
         palette = {}
-        backup_palette = sns.color_palette("hls", n_colors=len(methods),
-                desat=.5).as_hex()
         lmethods = list(methods)
         for method in lmethods:
             palette[method] = paper_palettes[method] if method in \
@@ -191,8 +189,8 @@ if __name__ == '__main__':
                 (col == EFname and ntargets <= 20):
                 leghands = []
                 for marker_id,target in enumerate(targets):
-                    mew = 1
-                    size = 16
+                    mew = 0.5
+                    size = 27
                     marker = swarm_markers[marker_id]
                     sns.stripplot(x='Method', y=col,
                             data=allEFs[allEFs['Target']==target],
@@ -205,12 +203,12 @@ if __name__ == '__main__':
                     if success_info:
                         leghands.append(mlines.Line2D([], [], color='black',
                             fillstyle='none', marker=marker, linestyle='None',
-                            mew=1,
+                            mew=mew,
                             markersize=size, label='%s (%s)' %(target,' '.join(litpcba_successes[target]))))
                     else:
                         leghands.append(mlines.Line2D([], [], color='black',
                             fillstyle='none', marker=marker, linestyle='None',
-                            mew=1,
+                            mew=mew,
                             markersize=size, label=target))
                 sns.boxplot(x='Method', y=col, data=allEFs,
                         color='white', ax=ax, order=order,

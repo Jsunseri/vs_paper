@@ -36,7 +36,8 @@ Rank Title Vina MW Target File RFScore-VS RFScore-4	dense\_seed0\_CNNaffinity de
     
     + aucbytarget.py creates by-target grids of plots showing ROC curves for
     all methods whose ${methodname}.summary files are provided, as well as
-    boxplots of AUCs
+    boxplots of AUCs, a modified version of a script from the original
+    protein-ligand scoring paper so it's a bit of a mess
 
     + early\_enrichment.py creates by-target barplots and by-method boxplots of
     early enrichment and normalized early enrichment; the user can specify the

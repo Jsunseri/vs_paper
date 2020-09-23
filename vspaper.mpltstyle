@@ -35,7 +35,7 @@ ytick.minor.size: 0
 font.size: 24
 axes.titlesize: 22
 axes.labelsize: 20
-xtick.labelsize: 14
+xtick.labelsize: 12
 ytick.labelsize: 18
 legend.fontsize: 14
 legend.title_fontsize: 18

@@ -60,35 +60,56 @@ paper_palettes['RF Refined\n(DUD-E features)'] = paper_palettes['RF DUD-E']
 paper_palettes['RF Refined\n(MUV features)'] = paper_palettes['RF MUV']
 
 name_map = {'dense-CNNscore-mean': 'Dense\n(Pose)', 'dense-CNNaffinity-mean': 'Dense\n(Affinity)',
+        'dense-CNNscore_CNNaffinity-poselevel_product': 'Dense\nPose %s Affinity' %'$\u00D7$',
+
         'crossdocked_default2018-CNNscore-mean': 'Cross-Docked\n(Pose)', 
         'crossdock_default2018-CNNscore-mean': 'Cross-Docked\n(Pose)', 
         'crossdock_default2018-CNNaffinity-mean': 'Cross-Docked\n(Affinity)', 
+        'crossdock_default2018-CNNscore_CNNaffinity-poselevel_product':
+        'Cross-Docked\nPose %s Affinity' %'$\u00D7$',
+
         'general_default2018-CNNscore-mean': 'General\n(Pose)',
         'general_default2018-CNNaffinity-mean': 'General\n(Affinity)', 
+        'general_default2018-CNNscore_CNNaffinity-poselevel_product':
+        'General\nPose %s Affinity' %'$\u00D7$',
+
         'rfscore-vs': 'RFScore-VS',
         'rf-score-4': 'RFScore-4',
+
         'dense-aff-mean': 'Dense\n(Affinity)',
         'crossdocked2018-CNNaffinity-mean': 'Cross-Docked\n(Affinity)', 
         'generalset2018-CNNaffinity-mean': 'General\n(Affinity)', 
         'dense_consensus': 'Dense\n(Consensus)', 
         'crossdock_default2018_consensus': 'Cross-Docked\n(Consensus)', 
         'general_default2018_consensus': 'General\n(Consensus)',
+
         'RF-Refined-DUDe': 'RF Refined\n(DUD-E features)',
         'RF-Refined-MUV': 'RF Refined\n(MUV features)', 
+
         'Vina': 'Vina'
         }
 
 reverse_map = {'Dense\n(Pose)': 'dense-CNNscore-mean',
         'Dense\n(Affinity)': 'dense-CNNaffinity-mean', 
+        'Dense\nPose %s Affinity' %'$\u00D7$': 'dense-CNNscore_CNNaffinity-poselevel_product',
+
         'Cross-Docked\n(Pose)': 'crossdock_default2018-CNNscore-mean', 
         'Cross-Docked\n(Affinity)': 'crossdock_default2018-CNNaffinity-mean',
+        'Cross-Docked\nPose %s Affinity' %'$\u00D7$':
+        'crossdock_default2018-CNNscore_CNNaffinity-poselevel_product',
+
         'General\n(Pose)': 'general_default2018-CNNscore-mean', 
         'General\n(Affinity)': 'general_default2018-CNNaffinity-mean', 
+        'General\nPose %s Affinity' %'$\u00D7$':
+        'general_default2018-CNNscore_CNNaffinity-poselevel_product', 
+
         'RFScore-VS': 'rfscore-vs', 
         'RFScore-4': 'rf-score-4', 
+
         'Dense\n(Consensus)': 'dense_consensus', 
         'Cross-Docked\n(Consensus)': 'crossdock_default2018_consensus', 
         'General\n(Consensus)': 'general_default2018_consensus',
+
         'RF Refined\n(DUD-E features)': 'RF-Refined-DUDe', 
         'RF Refined\n(MUV features)': 'RF-Refined-MUV'
         }
