@@ -80,7 +80,7 @@ for d in newmethods:
         outdf.to_csv(path_or_buf='%s.summary' %outname, sep=' ', header=False,
                 index=False, columns=['label', recalibrated_score, 'Target', 'Title', 'Method'])
         # (4)
-        outdf[scoregap] = outdf[meanmax] * outdf[meanmax] - outdf[meanmin]
+        outdf[scoregap] = outdf[meanmax] * (outdf[meanmax] - outdf[meanmin])
         outdf['Method'] = scoregap
         print('Writing out %s' %scoregap)
         outdf.to_csv(path_or_buf='%s.summary' %scoregap, sep=' ', header=False,
