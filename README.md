@@ -42,7 +42,7 @@ Rank Title Vina MW Target File RFScore-VS RFScore-4	dense_seed0_CNNaffinity dens
     early enrichment and normalized early enrichment; the user can specify the
     ratio but it defaults to 1%
 
-    + auc_stripplot.py create by-target stripplots of AUC, was basically a
+    + auc_stripplot.py creates by-target stripplots of AUC, was basically a
     one-off that I didn't end up using
  
     + correlation_summary.py computes correlations between predictions for
@@ -83,7 +83,7 @@ Rank Title Vina MW Target File RFScore-VS RFScore-4	dense_seed0_CNNaffinity dens
   > figure style-related scripts
 
     + vspaper.mpltstyle is a matplotlib stylesheet that modifies a few things
-    from the Seaborn-White parameters
+    from the seaborn-white parameters
 
     + vspaper_settings.py includes palettes, publication-ready names for
     methods, additional info that is sometimes included with targets in
