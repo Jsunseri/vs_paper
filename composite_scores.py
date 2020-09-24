@@ -63,11 +63,12 @@ for d in cnns:
         scoregap = d + '-' + stype + '-scoregap'
         meanmax = d + '-' + stype + '-mean_max'
         meanmin = d + '-' + stype + '-mean_min'
-        outdf = df.loc[grouped[mname].idxmax()]
-        outdf = outdf.merge(df.loc[grouped[mname].idxmin()], on=['label',
+        recalibrated_score = d + '-' + stype + '-mean-div-std'
+
+        outdf = df.loc[grouped[mname].idxmax()][['label', 'Target', 'Title', mname, recalibrated_score]]
+        outdf = outdf.merge(df.loc[grouped[mname].idxmin()][['label', 'Target', 'Title', mname]], on=['label',
             'Target', 'Title'], sort=False, suffixes=('_max', '_min'))
         # (5)
-        recalibrated_score = d + '-' + stype + '-mean-div-std'
         outname = d + '-' + stype + 'maxthen-mean-div-std'
         outdf['Method'] = outname
         print('Writing out %s' %outname)
@@ -83,7 +84,7 @@ for d in cnns:
     scoremean = d + '-CNNscore-mean'
     affmean = d + '-CNNaffinity-mean'
     outdf = df.loc[grouped[scoremean].idxmax()][['label', scoremean, 'Target', 'Title']]
-    outdf = outdf.merge(df.loc[grouped[affmean].idxmax()], 
+    outdf = outdf.merge(df[['label', affmean, 'Target', 'Title']].loc[grouped[affmean].idxmax()], 
             on=['label', 'Target', 'Title'], sort=False)
     predlevel_product = d + '-CNNscore_CNNaffinity-predlevel_product'
     outdf[predlevel_product] = outdf[scoremean] * outdf[affmean]

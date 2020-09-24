@@ -313,7 +313,7 @@ def mean_auc(data, methods, targets, noskill, sims, args):
                             auc = point[1]
                             found = False
                             for elem in boxplot_dat:
-                                if (elem['Method'] == m) and (round(elem['AUC'],3) == round(auc,3)):
+                                if (elem['Method'] == m) and (round(elem['AUC'],4) == round(auc,4)):
                                     t = elem['Target']
                                     found = True
                                     break
@@ -455,13 +455,13 @@ use those color schemes')
         methods,targets = [],[]
         if args.color_scheme == 'cnn':
             paper_palettes['Vina'] = '#CCBB44'
-        for file in args.predictions:
+        for fname in args.predictions:
             modifier = ''
-            # if "scorerank" not in file:
+            # if "scorerank" not in fname:
                 # modifier = "-affinityrank"
-            # if "max" not in file:
+            # if "max" not in fname:
                 # modifier += "-worstpose"
-            for line in open(file,'r'):
+            for line in open(fname,'r'):
                 contents = line.split()
                 target = contents[2].replace('_', ' ')
                 if args.color_scheme == 'vspaper':

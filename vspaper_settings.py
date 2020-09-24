@@ -86,7 +86,12 @@ name_map = {'dense-CNNscore-mean': 'Dense\n(Pose)', 'dense-CNNaffinity-mean': 'D
         'RF-Refined-DUDe': 'RF Refined\n(DUD-E features)',
         'RF-Refined-MUV': 'RF Refined\n(MUV features)', 
 
-        'Vina': 'Vina'
+        'Vina': 'Vina',
+        'dense': 'Dense', 
+        'crossdock_default2018': 'Cross-Docked', 
+        'general_default2018': 'General',
+        'CNNscore': 'Pose',
+        'CNNaffinity': 'Affinity'
         }
 
 reverse_map = {'Dense\n(Pose)': 'dense-CNNscore-mean',
@@ -113,6 +118,23 @@ reverse_map = {'Dense\n(Pose)': 'dense-CNNscore-mean',
         'RF Refined\n(DUD-E features)': 'RF-Refined-DUDe', 
         'RF Refined\n(MUV features)': 'RF-Refined-MUV'
         }
+
+for model in ['dense', 'crossdock_default2018', 'general_default2018']:
+    for layer in ['CNNscore', 'CNNaffinity']:
+        in_name = '%s-%smaxthen-mean-div-std' %(model,layer)
+        out_name = '%s\n(%s)\n%s-Adjusted\nPrediction' %(name_map[model], name_map[layer], '$\u03C3$')
+        name_map[in_name] = out_name
+        reverse_map[out_name] = in_name
+
+        in_name = '%s-%s-mean-div-std' %(model,layer)
+        out_name = '%s\n(%s)\n%s\n%s' %(name_map[model], name_map[layer],'$\u2014$', '$\u03C3$')
+        name_map[in_name] = out_name
+        reverse_map[out_name] = in_name
+
+        in_name = '%s-%s-scoregap' %(model, layer)
+        out_name = '%s\n(%s)\n%s\n(Max-Min)' %(name_map[model], name_map[layer], '$\u00D7$')
+        name_map[in_name] = out_name
+        reverse_map[out_name] = in_name
 
 cnn_lookup = {
         'generalScore': 'General\n(Pose)',
