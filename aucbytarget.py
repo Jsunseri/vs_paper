@@ -186,7 +186,7 @@ def mean_auc(data, methods, targets, noskill, sims, args):
             labels = [labels[i] for i in indices]
             fig.legend(handles, labels, loc='upper center', ncol=2, frameon=True)
         else:
-            legend = fig.legend(handles, labels, loc='best', frameon=True)
+            legend = fig.legend(handles, labels, loc='upper right', frameon=True)
 
         if args.color_scheme == 'cnn':
             fig.subplots_adjust(wspace=0.05, hspace=0.5)

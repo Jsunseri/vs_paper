@@ -122,12 +122,12 @@ reverse_map = {'Dense\n(Pose)': 'dense-CNNscore-mean',
 for model in ['dense', 'crossdock_default2018', 'general_default2018']:
     for layer in ['CNNscore', 'CNNaffinity']:
         in_name = '%s-%smaxthen-mean-div-std' %(model,layer)
-        out_name = '%s\n(%s)\n%s-Adjusted\nPrediction' %(name_map[model], name_map[layer], '$\u03C3$')
+        out_name = '%s\n(%s)\n%s-Adjusted\nPrediction' %(name_map[model], name_map[layer], r'$\sigma$')
         name_map[in_name] = out_name
         reverse_map[out_name] = in_name
 
         in_name = '%s-%s-mean-div-std' %(model,layer)
-        out_name = '%s\n(%s)\n%s\n%s' %(name_map[model], name_map[layer],'$\u2014$', '$\u03C3$')
+        out_name = '%s\n(%s)\n%s\n%s' %(name_map[model], name_map[layer], '$\u2014$', r'$\sigma$')
         name_map[in_name] = out_name
         reverse_map[out_name] = in_name
 

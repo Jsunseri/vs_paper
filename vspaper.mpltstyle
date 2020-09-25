@@ -17,9 +17,13 @@ image.cmap: Greys
 # for figure label generation
 font.family: serif
 font.serif: cmr10
-# mathtext.fontset: cm # I'm setting this individually in files that need it
-# because Computer Modern doesn't provide glyphs for the Unicode symbols I'm
-# using for LIT-PCBA
+# I think the functional Unicode fallback is DejaVu Sans, which AFAIK defines
+# the same code blocks as the corresponding Serif, but it still fails to find
+# the Unicode symbols I want...
+# font.cursive: DejaVu Serif
+# mathtext.fontset: custom
+# mathtext.it: DejaVu Serif
+# mathtext.rm: DejaVu Serif
 grid.linestyle: -
 lines.solid_capstyle: round
 

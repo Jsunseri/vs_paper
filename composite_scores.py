@@ -1,11 +1,12 @@
 #! /usr/bin/env python
 from argparse import ArgumentParser
-import pickle
+import math,pickle
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
+import numpy as np
 
 from vspaper_settings import paper_palettes, name_map, reverse_map, swarm_markers, litpcba_order
 
@@ -23,11 +24,13 @@ cnns = ["dense", "crossdock_default2018", "general_default2018"]
 #
 # (2) score_mean.div(score_std), taking the max wrt this recalibrated score directly
 #
-# (3) max within groupby for score and affinity separately, then product for prediction
+# (3) score_mean.div(exp^score_std), taking the max wrt this recalibrated score directly
 #
-# (4) score-max * (score-max - score-min) [i.e. the score-gap]
+# (4) max within groupby for score and affinity separately, then product for prediction
 #
-# (5) score_mean.div(score_std), taking the max wrt the mean and then using this 
+# (5) score-max * (score-max - score-min) [i.e. the score-gap]
+#
+# (6) score_mean.div(score_std), taking the max wrt the mean and then using this 
 #     recalibrated score as the pred
 outpreds = []
 for d in cnns:
@@ -38,17 +41,20 @@ for d in cnns:
         mname = d + '-' + stype + '-mean'
         stdname = d + '-' + stype + '-std'
         recalibrated_score = d + '-' + stype + '-mean-div-std'
+        exprecalibrated_score = d + '-' + stype + '-mean-div-expstd'
         df[mname] = df[snames].mean(axis=1)
         means.append(mname)
         df[stdname] = df[snames].std(axis=1)
         df[recalibrated_score] = df[mname] / df[stdname]
+        df[exprecalibrated_score] = df[mname] / np.exp(df[stdname])
         outpreds.append(recalibrated_score)
+        outpreds.append(exprecalibrated_score)
     poselevel_product = d + '-CNNscore_CNNaffinity-poselevel_product'
     df[poselevel_product] = df[means[0]] * df[means[1]]
     outpreds.append(poselevel_product)
 
 grouped = df.groupby(['Target','Title'], as_index=False)
-# take care of (1) and (2)
+# take care of (1), (2), and (3)
 for out in outpreds:
     print('Writing out %s' %out)
     outdf = df.loc[grouped[out].idxmax()]
@@ -56,7 +62,7 @@ for out in outpreds:
     outdf.to_csv(path_or_buf='%s.summary' %out, sep=' ', header=False,
             index=False, columns=['label', out, 'Target', 'Title', 'Method'])
 
-# now (5), (4), and (3)
+# now (6), (5), and (4)
 for d in cnns:
     for stype in ['CNNscore', 'CNNaffinity']:
         mname = d + '-' + stype + '-mean'
@@ -68,19 +74,19 @@ for d in cnns:
         outdf = df.loc[grouped[mname].idxmax()][['label', 'Target', 'Title', mname, recalibrated_score]]
         outdf = outdf.merge(df.loc[grouped[mname].idxmin()][['label', 'Target', 'Title', mname]], on=['label',
             'Target', 'Title'], sort=False, suffixes=('_max', '_min'))
-        # (5)
+        # (6)
         outname = d + '-' + stype + 'maxthen-mean-div-std'
         outdf['Method'] = outname
         print('Writing out %s' %outname)
         outdf.to_csv(path_or_buf='%s.summary' %outname, sep=' ', header=False,
                 index=False, columns=['label', recalibrated_score, 'Target', 'Title', 'Method'])
-        # (4)
+        # (5)
         outdf[scoregap] = outdf[meanmax] * (outdf[meanmax] - outdf[meanmin])
         outdf['Method'] = scoregap
         print('Writing out %s' %scoregap)
         outdf.to_csv(path_or_buf='%s.summary' %scoregap, sep=' ', header=False,
                 index=False, columns=['label', scoregap, 'Target', 'Title', 'Method'])
-    # (3)
+    # (4)
     scoremean = d + '-CNNscore-mean'
     affmean = d + '-CNNaffinity-mean'
     outdf = df.loc[grouped[scoremean].idxmax()][['label', scoremean, 'Target', 'Title']]

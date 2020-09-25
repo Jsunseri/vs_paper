@@ -1,13 +1,17 @@
 #!/usr/bin/env python
-import pickle
+import math,pickle
 from argparse import ArgumentParser
 from tabulate import tabulate
-import pandas as pd
+
 from sklearn.metrics import roc_auc_score
 from scipy.stats import pearsonr
+
 import matplotlib as mpl
 mpl.use('TKAgg')
 import matplotlib.pyplot as plt
+
+import pandas as pd
+import numpy as np
 import seaborn as sns
 
 from vspaper_settings import paper_palettes, name_map, reverse_map, swarm_markers, litpcba_order
@@ -54,6 +58,12 @@ props = dict(boxstyle='round', facecolor='white', alpha=0.8)
 if args.allposes:
     for i,method in enumerate(cnns):
         for j,stype in enumerate(['CNNscore', 'CNNaffinity']):
+            print('I found these Inf/NaN values in the DataFrame:\n')
+            print(df.index[np.isinf(df).any(1)])
+            print(df.columns.to_series()[np.isinf(df).any()])
+            print(df.index[np.isnan(df).any(1)])
+            print(df.columns.to_series()[np.isnan(df).any()])
+
             plot_num = i*2 + j
             sub_ax = plt.subplot2grid((grid_length,grid_width),
                     (plot_num // grid_width, plot_num % grid_width),
@@ -68,14 +78,15 @@ if args.allposes:
             r, _ = pearsonr(df[mean].values, df[stdev].values)
             sub_ax.annotate(r'$\rho = {0:.2}$'.format(r), xy=(.1, .9),
                      xycoords=sub_ax.transAxes, family='serif', bbox=props)
+            sub_ax.set_xlabel('')
             if plot_num == 0:
                 sub_ax.set_title('Pose')
             if plot_num == 1:
                 sub_ax.set_title('Affinity')
             if j == 0:
-                sub_ax.set_ylabel('Ensemble Standard Deviation')
-            if i == grid_length-1:
-                sub_ax.set_xlabel('Ensemble Mean')
+                sub_ax.set_ylabel('Ensemble Standard Deviation\n%s' %(name_map[method]))
+            else:
+                sub_ax.set_ylabel('')
     fig.savefig('ensemble_stdev_vs_mean_allposes.pdf', bbox_inches='tight')
 
 grouped = df.groupby(['Target','Title'], as_index=False)
@@ -103,16 +114,17 @@ for i,method in enumerate(cnns):
             r, _ = pearsonr(pred_df[mean].values, pred_df[stdev].values)
             sub_ax.annotate(r'$\rho = {0:.2}$'.format(r), xy=(.1, .9),
                      xycoords=sub_ax.transAxes, family='serif', bbox=props)
+            sub_ax.set_xlabel('')
             if plot_num == 0:
                 sub_ax.set_title('Pose')
             if plot_num == 1:
                 sub_ax.set_title('Affinity')
             if j == 0:
                 sub_ax.set_ylabel('Ensemble Standard Deviation\n%s' %(name_map[method]))
-                sub_ax.set_ylim(0, 0.5)
+                sub_ax.set_ylim(0, 1.0)
             else:
                 sub_ax.set_ylabel('')
-                sub_ax.set_ylim(0, 1.5)
+                sub_ax.set_ylim(0, 1.0)
                 sub_ax.set_xlim(0, 10)
             # sub_ax.set_xlabel(name_map[mean])
 # fig.subplots_adjust(hspace=0.5)
@@ -134,8 +146,6 @@ if args.rank:
             mname = method + '-' + stype + '-mean'
             pred_df['absrank'] = pred_df.groupby(['Target'])[mname].rank(method='first', ascending=False)
             pred_df['classrank'] = pred_df.groupby(['Target', 'label'])[mname].rank(method='first', ascending=False)
-            print(tabulate(pred_df[['label', mname, 'Target', 'Title', 'absrank', 'classrank']], headers='keys', tablefmt='psql'))
-    
             tgroups = pred_df.groupby(['Target'], as_index=False)
             actives = tgroups.agg({'label': 'sum'})
             for target in targets:
@@ -143,19 +153,22 @@ if args.rank:
                         (pred_df.loc[(pred_df['label'] == 0) & (pred_df['Target'] == target),
                         'classrank']).apply(lambda x: x + actives[actives['Target'] == target]['label'].values[0])
             pred_df['deviation'] = pred_df['classrank'] - pred_df['absrank']
+            print(tabulate(pred_df[['label', mname, 'Target', 'Title',
+                'absrank', 'classrank', 'deviation']], headers='keys', tablefmt='psql'))
     
             sub_ax = plt.subplot2grid((grid_length,grid_width),
                     (plot_num // grid_width, plot_num % grid_width),
                                     fig=fig)
             stdev = mname.replace('mean','std')
-            sns.kdeplot(pred_df['deviation'], pred_df[stdev], 
+            sns.scatterplot(pred_df['deviation'], pred_df[stdev], 
                     ax = sub_ax,
-                    shade=True,
-                    shade_lowest=False, 
+                    # shade=True,
+                    # shade_lowest=False, 
                     color=paper_palettes[mname])
             r, _ = pearsonr(pred_df[mname].values, pred_df[stdev].values)
             sub_ax.annotate(r'$\rho = {0:.2}$'.format(r), xy=(.1, .9),
                      xycoords=sub_ax.transAxes, family='serif', bbox=props)
+            sub_ax.set_xlabel('')
             if plot_num == 0:
                 sub_ax.set_title('Pose')
             if plot_num == 1:
@@ -168,7 +181,8 @@ if args.rank:
                 sub_ax.set_ylim(0, 1.5)
             if i == grid_length-1:
                 sub_ax.set_xlabel('Minimum Rank Deviation')
-    fig.savefig('ensemble_stdev_vs_rankdeviation_topposes.pdf', bbox_inches='tight')
+    plt.gca().set_xticklabels([i.get_text().replace('−', '$-$') for i in ax.get_xticklabels()])
+    fig.savefig('ensemble_stdev_vs_rankdeviation_topposes.png', dpi=300, bbox_inches='tight')
 
 # per target: mean variance over compounds vs AUC, EF1%
 if args.metric:
@@ -177,6 +191,9 @@ if args.metric:
     grouped = pred_df.groupby(['Target'], as_index=False)
     actives = grouped.agg({'label': 'sum'})
     actives.rename(columns={'label': 'NA'}, inplace=True)
+    R = .01
+    pctg = int(R * 100)
+    EFname = 'EF{}\%'.format(pctg)
     for i,method in enumerate(cnns):
         for j,stype in enumerate(['CNNscore', 'CNNaffinity']):
             plot_num = i*2 + j
@@ -193,9 +210,6 @@ if args.metric:
             enrich_actives = topn_grouped.agg({'label': 'sum'})
             enrich_actives.rename(columns={'label': 'na'}, inplace=True)
        
-            R = .01
-            pctg = int(R * 100)
-            EFname = 'EF{}\%'.format(pctg)
             EFR = actives.merge(enrich_actives, on='Target')
             EFR[EFname] = EFR['na'] / (EFR['NA'] * R)
             EFR = EFR.merge(mean_stdev[stdev, 'Target'], on=['Target'])
@@ -229,6 +243,7 @@ if args.metric:
             r, _ = pearsonr(aucs['AUC'].values, aucs[stdev+'-mean'].values)
             sub_ax.annotate(r'$\rho = {0:.2}$'.format(r), xy=(.1, .9),
                      xycoords=sub_ax.transAxes, family='serif', bbox=props)
+            sub_ax.set_xlabel('')
             if plot_num == 0:
                 sub_ax.set_title('Pose')
             if plot_num == 1:
@@ -250,8 +265,6 @@ if args.similarity:
     for sim in args.simfiles:
         siminfo = sim.strip().split(',')
         sim_method = siminfo[0]
-        if sim_method in name_map:
-            sim_method = name_map[sim_method]
         simfile = siminfo[1]
         sims[sim_method] = {}
         # read file contents into dict
@@ -267,28 +280,29 @@ if args.similarity:
             assert target in sims[sim_method], 'Target %s missing from similarity data %s' %(target, simfile)
     
     # now plot stdev vs that info
-    for plot_num,mname in enumerate(means):
-        assert method in sims, '%s target similarity data not provided' %method
-        # get mean stdev per target
-        stdev = mname.replace('mean','std')
-        sim_stdev = grouped.agg({stdev: 'mean'})
-        sim_stdev.rename(columns={stdev: stdev+'-mean'}, inplace=True)
-        sim_stdev['Similarity'] = sim_stdev.apply(lambda x: sims[x[mname]][x['Target']])
-        sub_ax = plt.subplot2grid((grid_length,grid_width),
-                (plot_num // grid_width, plot_num % grid_width),
-                                fig=fig)
-        sns.scatterplot('Similarity', stdev+'-mean', data=sim_stdev, 
-                ax=sub_ax,
-                color=paper_palettes[mname])
-        r, _ = pearsonr(sim_stdev['Similarity'].values, sim_stdev[stdev+'-mean'].values)
-        sub_ax.annotate(r'$\rho = {0:.2}$'.format(r), xy=(.1, .9),
-                 xycoords=sub_ax.transAxes, family='serif', bbox=props)
-        if plot_num == 0:
-            sub_ax.set_title('Pose')
-        if plot_num == 1:
-            sub_ax.set_title('Affinity')
-        if j == 0:
-            sub_ax.set_ylabel('Ensemble Standard Deviation\nMean Over Each Target\'s Compounds')
-        if i == grid_length-1:
-            sub_ax.set_xlabel('Maximum Similarity to Training Set Target')
+    for i,method in enumerate(cnns):
+        for j,stype in enumerate(['CNNscore', 'CNNaffinity']):
+            assert method in sims, '%s target similarity data not provided' %method
+            # get mean stdev per target
+            stdev = mname.replace('mean','std')
+            sim_stdev = grouped.agg({stdev: 'mean'})
+            sim_stdev.rename(columns={stdev: stdev+'-mean'}, inplace=True)
+            sim_stdev['Similarity'] = sim_stdev.apply(lambda x: sims[x[mname]][x['Target']])
+            sub_ax = plt.subplot2grid((grid_length,grid_width),
+                    (plot_num // grid_width, plot_num % grid_width),
+                                    fig=fig)
+            sns.scatterplot('Similarity', stdev+'-mean', data=sim_stdev, 
+                    ax=sub_ax,
+                    color=paper_palettes[mname])
+            r, _ = pearsonr(sim_stdev['Similarity'].values, sim_stdev[stdev+'-mean'].values)
+            sub_ax.annotate(r'$\rho = {0:.2}$'.format(r), xy=(.1, .9),
+                     xycoords=sub_ax.transAxes, family='serif', bbox=props)
+            if plot_num == 0:
+                sub_ax.set_title('Pose')
+            if plot_num == 1:
+                sub_ax.set_title('Affinity')
+            if j == 0:
+                sub_ax.set_ylabel('Ensemble Standard Deviation\nMean Over Each Target\'s Compounds')
+            if i == grid_length-1:
+                sub_ax.set_xlabel('Maximum Similarity to Training Set Target')
     fig.savefig('ensemble_stdev_vs_trainingset_similarity.pdf', bbox_inches='tight')
