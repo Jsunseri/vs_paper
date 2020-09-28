@@ -84,6 +84,8 @@ if __name__ == '__main__':
     parser.add_argument('-s', '--summaryfiles', nargs='+', help='Provide '
             'one or more prediction summary files that must be structured like '
             '[LABEL PREDICTION TARGET TITLE METHOD]')
+    parser.add_argument('-o', '--outprefix', type=str, default='', 
+            help='Prefix for output filenames')
     args = parser.parse_args()
 
     # preds are LABELS PREDICTIONS TARGET TITLE METHOD 
@@ -237,7 +239,7 @@ if __name__ == '__main__':
             #sigh
             ax.set_ylabel(col)
             ax.set_xlabel('')
-            fig.savefig('%s_boxplot.pdf' %(col.replace(' ', '_').replace('\\','')), bbox_inches='tight')
+            fig.savefig('%s%s_boxplot.pdf' %(args.outprefix, col.replace(' ', '_').replace('\\','')), bbox_inches='tight')
             
             if ntargets > 25:
                 size = (16, 30)
@@ -284,7 +286,7 @@ if __name__ == '__main__':
                 handles = [handles[i] for i in indices]
                 labels = [labels[i] for i in indices]
                 ax.legend(handles, labels, title='Method', frameon=True, ncol=3, bbox_to_anchor=anchor)
-            fig.savefig('%s_stripplot.pdf' %(col.replace(' ', '_').replace('\\','')), bbox_inches='tight')
+            fig.savefig('%s%s_stripplot.pdf' %(args.outprefix, col.replace(' ', '_').replace('\\','')), bbox_inches='tight')
    
         if args.barplot:
             SMALL_SIZE=90
@@ -301,4 +303,4 @@ if __name__ == '__main__':
             
             fig,ax = plt.subplots(figsize=(500,80))
             sortedgroupedbar(ax, x="Target", y=EFname, groupby="Method", data=allEFs, width=0.7, palette=palette)
-            fig.savefig('EF%d_targets_barplot.pdf' %pctg, bbox_inches='tight')
+            fig.savefig('%sEF%d_targets_barplot.pdf' %(args.outprefix, pctg), bbox_inches='tight')

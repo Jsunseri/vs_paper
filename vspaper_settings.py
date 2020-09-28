@@ -18,7 +18,7 @@ paper_palettes['CNN Scoring Refine'] = '#877b25'
 paper_palettes['Experiment'] = '#498540'
 paper_palettes['Vinardo'] = '#F2CC86'
 paper_palettes['dense-CNNscore-mean'] = '#60DFC4'
-paper_palettes['dense-CNNaffinity-mean'] = '#58C9AB'
+paper_palettes['dense-CNNaffinity-mean'] = '#399a97'
 paper_palettes['dense_consensus'] = '#cdf2dd'
 paper_palettes['crossdock_default2018-CNNscore-mean'] = '#FFA502'
 paper_palettes['crossdock_default2018-CNNaffinity-mean'] = '#C96424'
@@ -123,6 +123,11 @@ for model in ['dense', 'crossdock_default2018', 'general_default2018']:
     for layer in ['CNNscore', 'CNNaffinity']:
         in_name = '%s-%smaxthen-mean-div-std' %(model,layer)
         out_name = '%s\n(%s)\n%s-Adjusted\nPrediction' %(name_map[model], name_map[layer], r'$\sigma$')
+        name_map[in_name] = out_name
+        reverse_map[out_name] = in_name
+
+        in_name = '%s-%s-mean-div-expstd' %(model,layer)
+        out_name = '%s\n(%s)\n%s-Adjusted\nPrediction' %(name_map[model], name_map[layer], r'$e^{\sigma}$')
         name_map[in_name] = out_name
         reverse_map[out_name] = in_name
 
