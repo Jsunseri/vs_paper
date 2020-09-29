@@ -17,6 +17,7 @@ import seaborn as sns
 from vspaper_settings import paper_palettes, name_map, reverse_map, swarm_markers, litpcba_order
 
 mpl.rcParams.update({'mathtext.fontset': 'cm'})
+mpl.rcParams.update({'text.usetex': 'True'})
 
 parser = ArgumentParser(description='Plot relationship between ensemble stdev '
         'and other things that it might be related to')
@@ -29,6 +30,8 @@ parser.add_argument('-a', '--allposes', action='store_true', help='Do the stdev 
 parser.add_argument('-t', '--topposes', action='store_true', help='Do the stdev '
         'vs mean score plot for top pose for each method')
 parser.add_argument('-r', '--rank', action='store_true', help='Do the stdev '
+        'vs rank deviation plot')
+parser.add_argument('-rm', '--rank_vs_mean', action='store_true', help='Do the mean '
         'vs rank deviation plot')
 parser.add_argument('-m', '--metric', action='store_true', help='Do the stdev '
         '(mean across all compounds per target) vs performance metric plots')
@@ -76,9 +79,9 @@ if args.allposes:
                     edgecolor='black',
                     alpha=0.5,
                     color=paper_palettes[mean])
-            r, _ = pearsonr(df[mean].values, df[stdev].values)
-            sub_ax.annotate(r'$\rho = {0:.2}$'.format(r), xy=(.1, .9),
-                     xycoords=sub_ax.transAxes, family='serif', bbox=props)
+            # r, _ = pearsonr(df[mean].values, df[stdev].values)
+            # sub_ax.annotate(r'$\rho = {0:.2}$'.format(r), xy=(.1, .9),
+                     # xycoords=sub_ax.transAxes, family='serif', bbox=props)
             sub_ax.set_xlabel('')
             if plot_num == 0:
                 sub_ax.set_title('Pose')
@@ -86,11 +89,11 @@ if args.allposes:
                 sub_ax.set_title('Affinity')
             if j == 0:
                 sub_ax.set_ylabel('Ensemble Standard Deviation\n%s' %(name_map[method]))
-                # sub_ax.set_ylim(0, 0.5)
+                sub_ax.set_ylim(sub_ax.get_ylim()[0], 0.56)
             else:
                 sub_ax.set_ylabel('')
-                # sub_ax.set_ylim(0, 1.0)
-                sub_ax.set_xlim(0, 10)
+                sub_ax.set_ylim(sub_ax.get_ylim()[0], 2.55)
+                sub_ax.set_xlim(0, 10.5)
     fig.savefig('ensemble_stdev_vs_mean_allposes.png', dpi=300, bbox_inches='tight')
 
 grouped = df.groupby(['Target','Title'], as_index=False)
@@ -118,9 +121,9 @@ for i,method in enumerate(cnns):
                     edgecolor='black',
                     alpha=0.5,
                     color=paper_palettes[mean])
-            r, _ = pearsonr(pred_df[mean].values, pred_df[stdev].values)
-            sub_ax.annotate(r'$\rho = {0:.2}$'.format(r), xy=(.1, .9),
-                     xycoords=sub_ax.transAxes, family='serif', bbox=props)
+            # r, _ = pearsonr(pred_df[mean].values, pred_df[stdev].values)
+            # sub_ax.annotate(r'$\rho = {0:.2}$'.format(r), xy=(.1, .9),
+                     # xycoords=sub_ax.transAxes, family='serif', bbox=props)
             sub_ax.set_xlabel('')
             if plot_num == 0:
                 sub_ax.set_title('Pose')
@@ -128,11 +131,11 @@ for i,method in enumerate(cnns):
                 sub_ax.set_title('Affinity')
             if j == 0:
                 sub_ax.set_ylabel('Ensemble Standard Deviation\n%s' %(name_map[method]))
-                sub_ax.set_ylim(sub_ax.get_ylim()[0], 0.5)
+                sub_ax.set_ylim(sub_ax.get_ylim()[0], 0.56)
             else:
                 sub_ax.set_ylabel('')
-                sub_ax.set_ylim(sub_ax.get_ylim()[0], 2.0)
-                # sub_ax.set_xlim(0, 10)
+                sub_ax.set_ylim(sub_ax.get_ylim()[0], 2.05)
+                sub_ax.set_xlim(0, 10.5)
             # sub_ax.set_xlabel(name_map[mean])
 # fig.subplots_adjust(hspace=0.5)
 if args.topposes:
@@ -163,8 +166,8 @@ if args.rank:
                         (pred_df.loc[(pred_df['label'] == 0) & (pred_df['Target'] == target),
                         'classrank']).apply(lambda x: x + actives[actives['Target'] == target]['label'].values[0])
             pred_df['deviation'] = pred_df['classrank'] - pred_df['absrank']
-            print(tabulate(pred_df[['label', mname, 'Target', 'Title',
-                'absrank', 'classrank', 'deviation']], headers='keys', tablefmt='psql'))
+            # print(tabulate(pred_df[['label', mname, 'Target', 'Title',
+                # 'absrank', 'classrank', 'deviation']], headers='keys', tablefmt='psql'))
    
             # two separate figs because the magnitude of the negative deviations 
             # associated with actives hides the detail of what's happening with
@@ -185,9 +188,9 @@ if args.rank:
                         # shade=True,
                         # shade_lowest=False, 
                         color=paper_palettes[mname])
-                r, _ = pearsonr(sub_df[mname].values, sub_df[stdev].values)
-                sub_ax.annotate(r'$\rho = {0:.2}$'.format(r), xy=(.1, .9),
-                         xycoords=sub_ax.transAxes, family='serif', bbox=props)
+                # r, _ = pearsonr(sub_df[mname].values, sub_df[stdev].values)
+                # sub_ax.annotate(r'$\rho = {0:.2}$'.format(r), xy=(.1, .9),
+                         # xycoords=sub_ax.transAxes, family='serif', bbox=props)
                 sub_ax.set_xlabel('')
                 if plot_num == 0:
                     sub_ax.set_title('Pose')
@@ -195,16 +198,69 @@ if args.rank:
                     sub_ax.set_title('Affinity')
                 if j == 0:
                     sub_ax.set_ylabel('Ensemble Standard Deviation\n%s' %(name_map[method]))
-                    # sub_ax.set_ylim(0, 0.5)
+                    sub_ax.set_ylim(sub_ax.get_ylim()[0], 0.56)
                 else:
                     sub_ax.set_ylabel('')
-                    # sub_ax.set_ylim(0, 1.5)
+                    sub_ax.set_ylim(sub_ax.get_ylim()[0], 2.05)
                 if i == grid_length-1:
                     sub_ax.set_xlabel('Minimum Rank Deviation')
                 # sub_ax.set_xticklabels([i.get_text().replace('−', '$-$') for i in sub_ax.get_xticklabels()])
     for ctype in ctypes:
         fig,_ = figinfo[ctype]
         fig.savefig('ensemble_stdev_vs_rankdeviation_topposes_%s.png' %ctype, dpi=300, bbox_inches='tight')
+
+if args.rank_vs_mean:
+    ctypes = ['active', 'inactive']
+    figinfo = {}
+    for ctype in ctypes:
+        figinfo[ctype] = plt.subplots(figsize=(16,16))
+    for i,method in enumerate(cnns):
+        for j,stype in enumerate(['CNNscore', 'CNNaffinity']):
+            plot_num = i*2 + j
+            mname = method + '-' + stype + '-mean'
+            pred_df['absrank'] = pred_df.groupby(['Target'])[mname].rank(method='first', ascending=False)
+            pred_df['classrank'] = pred_df.groupby(['Target', 'label'])[mname].rank(method='first', ascending=False)
+            tgroups = pred_df.groupby(['Target'], as_index=False)
+            actives = tgroups.agg({'label': 'sum'})
+            for target in targets:
+                pred_df.loc[(pred_df['label'] == 0) & (pred_df['Target'] == target), 'classrank'] = \
+                        (pred_df.loc[(pred_df['label'] == 0) & (pred_df['Target'] == target),
+                        'classrank']).apply(lambda x: x + actives[actives['Target'] == target]['label'].values[0])
+            pred_df['deviation'] = pred_df['classrank'] - pred_df['absrank']
+   
+            # two separate figs because the magnitude of the negative deviations 
+            # associated with actives hides the detail of what's happening with
+            # the inactives
+            for ctype in ctypes:
+                label = 0 if ctype == 'inactive' else 1
+                sub_df = pred_df.loc[pred_df['label'] == label]
+                fig,ax = figinfo[ctype]
+                sub_ax = plt.subplot2grid((grid_length,grid_width),
+                        (plot_num // grid_width, plot_num % grid_width),
+                                        fig=fig)
+                sns.scatterplot(sub_df['deviation'], sub_df[mname], 
+                        ax = sub_ax,
+                        linewidths=0.5,
+                        edgecolor='black',
+                        alpha=0.7,
+                        # shade=True,
+                        # shade_lowest=False, 
+                        color=paper_palettes[mname])
+                sub_ax.set_xlabel('')
+                if plot_num == 0:
+                    sub_ax.set_title('Pose')
+                if plot_num == 1:
+                    sub_ax.set_title('Affinity')
+                if j == 0:
+                    sub_ax.set_ylabel('Ensemble Mean\n%s' %(name_map[method]))
+                else:
+                    sub_ax.set_ylabel('')
+                    sub_ax.set_ylim(sub_ax.get_ylim()[0], 10.5)
+                if i == grid_length-1:
+                    sub_ax.set_xlabel('Minimum Rank Deviation')
+    for ctype in ctypes:
+        fig,_ = figinfo[ctype]
+        fig.savefig('ensemble_mean_vs_rankdeviation_topposes_%s.png' %ctype, dpi=300, bbox_inches='tight')
 
 # per target: mean variance over compounds vs AUC, EF1%
 if args.metric:
@@ -244,17 +300,23 @@ if args.metric:
                     edgecolor='black',
                     alpha=0.7,
                     color=paper_palettes[mname])
-            r, _ = pearsonr(EFR[EFname].values, EFR[stdev+'-mean'].values)
-            sub_ax.annotate(r'$\rho = {0:.2}$'.format(r), xy=(.1, .9),
-                     xycoords=sub_ax.transAxes, family='serif', bbox=props)
+            # r, _ = pearsonr(EFR[EFname].values, EFR[stdev+'-mean'].values)
+            # sub_ax.annotate(r'$\rho = {0:.2}$'.format(r), xy=(.1, .9),
+                     # xycoords=sub_ax.transAxes, family='serif', bbox=props)
+            sub_ax.set_xlabel('')
             if plot_num == 0:
                 sub_ax.set_title('Pose')
             if plot_num == 1:
                 sub_ax.set_title('Affinity')
             if j == 0:
-                sub_ax.set_ylabel('Ensemble Standard Deviation\nMean Over Each Target\'s Compounds')
+                sub_ax.set_ylabel('Ensemble Standard Deviation')
+                sub_ax.set_ylim(0, 0.3)
+            else:
+                sub_ax.set_ylabel('')
+                sub_ax.set_ylim(0, 0.75)
             if i == grid_length-1:
-                sub_ax.set_xlabel('EF1\%')
+                sub_ax.set_xlabel('EF1%')
+            sub_ax.set_xlim(sub_ax.get_xlim()[0], 75)
     
             # get AUC
             idx_grouped = pred_df.groupby(['Target'])
@@ -269,18 +331,23 @@ if args.metric:
                     edgecolor='black',
                     alpha=0.7,
                     color=paper_palettes[mname])
-            r, _ = pearsonr(aucs['AUC'].values, aucs[stdev+'-mean'].values)
-            sub_ax.annotate(r'$\rho = {0:.2}$'.format(r), xy=(.1, .9),
-                     xycoords=sub_ax.transAxes, family='serif', bbox=props)
+            # r, _ = pearsonr(aucs['AUC'].values, aucs[stdev+'-mean'].values)
+            # sub_ax.annotate(r'$\rho = {0:.2}$'.format(r), xy=(.1, .9),
+                     # xycoords=sub_ax.transAxes, family='serif', bbox=props)
             sub_ax.set_xlabel('')
             if plot_num == 0:
                 sub_ax.set_title('Pose')
             if plot_num == 1:
                 sub_ax.set_title('Affinity')
             if j == 0:
-                sub_ax.set_ylabel('Ensemble Standard Deviation\nMean Over Each Target\'s Compounds')
+                sub_ax.set_ylabel('Ensemble Standard Deviation')
+                sub_ax.set_ylim(0, 0.3)
+            else:
+                sub_ax.set_ylabel('')
+                sub_ax.set_ylim(0, 0.75)
             if i == grid_length-1:
                 sub_ax.set_xlabel('AUC')
+            sub_ax.set_xlim(sub_ax.get_xlim()[0], 75)
     
     auc_fig.savefig('ensemble_stdev_vs_auc.png', dpi=300, bbox_inches='tight')
     ef_fig.savefig('ensemble_stdev_vs_EF1.png', dpi=300, bbox_inches='tight')
@@ -291,6 +358,7 @@ if args.similarity:
     sims = {}
     fig,ax = plt.subplots(figsize=(16,16))
     assert args.simfiles, 'Training set similarity data not provided'
+    grouped = pred_df.groupby(['Target'], as_index=False)
     for sim in args.simfiles:
         siminfo = sim.strip().split(',')
         sim_method = siminfo[0]
@@ -302,9 +370,10 @@ if args.similarity:
                 if line.startswith('#'):
                     continue
                 contents = line.strip().split()
-                target = contents[0].replace('_', ' ')
+                target = contents[0]
                 similarity = 1 - float(contents[-1])
                 sims[sim_method][target] = similarity
+                # target = contents[0].replace('_', ' ')
         for target in targets:
             assert target in sims[sim_method], 'Target %s missing from similarity data %s' %(target, simfile)
     
@@ -328,15 +397,20 @@ if args.similarity:
                     edgecolor='black',
                     alpha=0.7,
                     color=paper_palettes[mname])
-            r, _ = pearsonr(sim_stdev['Similarity'].values, sim_stdev[stdev+'-mean'].values)
-            sub_ax.annotate(r'$\rho = {0:.2}$'.format(r), xy=(.1, .9),
-                     xycoords=sub_ax.transAxes, family='serif', bbox=props)
+            # r, _ = pearsonr(sim_stdev['Similarity'].values, sim_stdev[stdev+'-mean'].values)
+            # sub_ax.annotate(r'$\rho = {0:.2}$'.format(r), xy=(.1, .9),
+                     # xycoords=sub_ax.transAxes, family='serif', bbox=props)
+            sub_ax.set_xlabel('')
             if plot_num == 0:
                 sub_ax.set_title('Pose')
             if plot_num == 1:
                 sub_ax.set_title('Affinity')
             if j == 0:
-                sub_ax.set_ylabel('Ensemble Standard Deviation\nMean Over Each Target\'s Compounds')
+                sub_ax.set_ylabel('Ensemble Standard Deviation')
+                sub_ax.set_ylim(sub_ax.get_ylim()[0], 0.5)
+            else:
+                sub_ax.set_ylabel('')
+                sub_ax.set_ylim(sub_ax.get_ylim()[0], 1.5)
             if i == grid_length-1:
                 sub_ax.set_xlabel('Maximum Similarity to Training Set Target')
     fig.savefig('ensemble_stdev_vs_trainingset_similarity.png', dpi=300, bbox_inches='tight')
