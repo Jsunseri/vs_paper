@@ -316,7 +316,7 @@ if args.metric:
                 sub_ax.set_ylim(0, 0.75)
             if i == grid_length-1:
                 sub_ax.set_xlabel('EF1%')
-            sub_ax.set_xlim(sub_ax.get_xlim()[0], 75)
+            sub_ax.set_xlim(sub_ax.get_xlim()[0], 80)
     
             # get AUC
             idx_grouped = pred_df.groupby(['Target'])
@@ -347,7 +347,6 @@ if args.metric:
                 sub_ax.set_ylim(0, 0.75)
             if i == grid_length-1:
                 sub_ax.set_xlabel('AUC')
-            sub_ax.set_xlim(sub_ax.get_xlim()[0], 75)
     
     auc_fig.savefig('ensemble_stdev_vs_auc.png', dpi=300, bbox_inches='tight')
     ef_fig.savefig('ensemble_stdev_vs_EF1.png', dpi=300, bbox_inches='tight')
