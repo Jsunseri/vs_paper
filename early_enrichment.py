@@ -181,7 +181,10 @@ if __name__ == '__main__':
         if args.normalized:
             plotcol.append(normalized_name)
         for col in plotcol:
-            size = (18,10)
+            if len(lmethods) > 5:
+                size = (18,10)
+            else:
+                size = (12, 10)
             fig,ax = plt.subplots(figsize=size)
             grouped = allEFs.groupby(['Method'], as_index=False)
             medians = grouped[col].median()
