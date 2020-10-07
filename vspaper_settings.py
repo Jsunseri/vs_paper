@@ -220,6 +220,26 @@ litpcba_order = [
         'VDR'
         ]
 
+litpcba_ntemplates = {
+        'ADRB2': 8, 
+        'ALDH1': 8, 
+        'ESR1 ago': 15, 
+        'ESR1_ago': 15, 
+        'ESR1 ant': 15, 
+        'ESR1_ant': 15, 
+        'FEN1': 1, 
+        'GBA': 6, 
+        'IDH1': 14, 
+        'KAT2A': 3, 
+        'MAPK1': 15, 
+        'MTORC1': 11, 
+        'OPRK1': 1, 
+        'PKM2': 9, 
+        'PPARG': 15, 
+        'TP53': 6, 
+        'VDR': 2
+        }
+
 # u2665 == filled heart; u2602 == umbrella; u260e == telephone; 
 # u260f == telephone2;
 # u265b == chessqueen; u265e == chess knight; u265C == rook;
