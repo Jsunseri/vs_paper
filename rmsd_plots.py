@@ -23,6 +23,9 @@ from vspaper_settings import paper_palettes, backup_palette, name_map, reverse_m
 # mpl.rc('text', usetex=True)
 # mpl.rc('text.latex', preamble=r'\usepackage[utf8x]{inputenc}')
 # mpl.rcParams['mathtext.fontset'] = 'cm'
+mpl.rcParams['mathtext.fontset'] = 'custom'
+mpl.rcParams['mathtext.rm'] = 'STIXGeneral'
+mpl.rcParams['mathtext.sf'] = 'DejaVu Sans'
 
 parser = argparse.ArgumentParser(description='Plot summary of pose prediction '
         'performance and correlation between pose prediction and virtual '
@@ -57,10 +60,9 @@ for f in args.summary:
     'to one target and one method')
     target = target[0]
     if target in tmp_dfs:
-        tmp_dfs[target] = pd.merge(tmp_dfs[target], this_df, on=infocols + ['Vina'], sort=False)
+        tmp_dfs[target] = pd.merge(tmp_dfs[target], this_df, on=infocols + ['Vina'], sort=False, how='outer')
     else:
         tmp_dfs[target] = this_df
-
 df = pd.concat(tmp_dfs.values(), ignore_index=True)
 
 cols = list(df)
@@ -91,11 +93,14 @@ for d in cnn:
 
 # drop the individual ensemble predictions
 df = df[infocols + methods]
-vina_mins = df.groupby(['Target', 'Compound']).RMSD.min()
-vina_num_goodposes = vina_mins.loc[vina_mins <=
+targets = df['Target'].unique().tolist()
+grp = df.groupby(['Target', 'Compound'])
+vina_mins = df.groupby(['Target', 'Compound'], as_index=False).RMSD.min()
+vina_mins = vina_mins.astype({'Target': 'category'})
+vina_num_goodposes = vina_mins.loc[vina_mins['RMSD'] <=
         args.threshold].groupby(['Target']).size().reset_index(name='Best Available\n(Vina)')
 vina_num_compounds = vina_mins.groupby(['Target']).size().reset_index(name='Number of Templates')
-best_summary = pd.merge(vina_num_goodposes, vina_num_compounds, on=['Target'], sort=False)
+best_summary = pd.merge(vina_num_goodposes, vina_num_compounds, on=['Target'], sort=False, how='outer')
 best_summary['Prediction'] = best_summary['Best Available\n(Vina)'] / best_summary['Number of Templates']
 best_summary['Method'] = 'Best Available\n(Vina)'
 
@@ -123,7 +128,7 @@ for i,method in enumerate(methods):
     except NameError:
         overall_summary = summary
 overall_summary = pd.merge(overall_summary, best_summary[['Target', 'Number of Templates']],
-        on=['Target'], sort=False)
+        on=['Target'], sort=False, how='outer')
 overall_summary['Prediction'] = overall_summary['Prediction'] / overall_summary['Number of Templates']
 
 # add in a dummy rank column and concat the "best" data for each included rank
@@ -141,11 +146,13 @@ for i,f in enumerate(args.vinardo):
     if i == len(args.vinardo)-1:
         methods.append('Vinardo')
         vinardo_df.loc[:,'Vinardo'] = vinardo_df[['Vinardo']].mul(-1) 
-        vinardo_mins = vinardo_df.groupby(['Target', 'Compound']).RMSD.min()
-        vinardo_num_goodposes = vinardo_mins.loc[vinardo_mins <=
+        vinardo_mins = vinardo_df.groupby(['Target', 'Compound'], as_index=False).RMSD.min()
+        vinardo_mins = vinardo_mins.astype({'Target': 'category'})
+        vinardo_num_goodposes = vinardo_mins.loc[vinardo_mins['RMSD'] <=
             args.threshold].groupby(['Target']).size().reset_index(name='Best Available\n(Vinardo)')
         vinardo_num_compounds = vinardo_mins.groupby(['Target']).size().reset_index(name='Number of Templates')
-        best_vinardo_summary = pd.merge(vinardo_num_goodposes, vinardo_num_compounds, on=['Target'], sort=False)
+        best_vinardo_summary = pd.merge(vinardo_num_goodposes,
+                vinardo_num_compounds, on=['Target'], sort=False, how='outer')
         best_vinardo_summary['Prediction'] = \
                     best_vinardo_summary['Best Available\n(Vinardo)'] / best_vinardo_summary['Number of Templates']
         best_vinardo_summary['Method'] = 'Best Available\n(Vinardo)'
@@ -165,7 +172,7 @@ for i,f in enumerate(args.vinardo):
             vinardo_summary = pd.concat([vinardo_summary, this_summary], ignore_index=True, sort=False)
         vinardo_summary['Method'] = 'Vinardo'
         vinardo_summary = pd.merge(vinardo_summary, best_vinardo_summary[['Target', 'Number of Templates']], 
-                on=['Target'], sort=False)
+                on=['Target'], sort=False, how='outer')
         vinardo_summary['Prediction'] = vinardo_summary['Prediction'] / vinardo_summary['Number of Templates']
         for rank in [1,3,5]:
             best_vinardo_summary['Rank'] = rank
@@ -205,7 +212,8 @@ for rank in [1,3,5]:
         markerdict = {}
         mew = 0.5
         for marker_id,target in enumerate(targets):
-            marker = swarm_markers[marker_id]
+            marker = r'$\mathsf{%s}$' % (swarm_markers[marker_id].replace('$',''))
+            # marker = swarm_markers[marker_id]
             size = 22
             markerdict[target] = (marker,size)
             if template_info:
@@ -233,7 +241,9 @@ for rank in [1,3,5]:
         sns.boxplot(x='Method', y='Prediction', data=rank_summary,
                 color='white', ax=symbol_ax, order=order, 
                 showfliers=False, zorder=2)
-        symbol_ax.set_ylabel(r'Fraction of Compounds with Pose $\leq %s \AA$ RMSD' %args.threshold)
+        lt_symbol = r'$\mathrm{%s}$' % '\u2264'
+        angstrom_symbol = r'$\mathrm{%s}$' % '\u212B'
+        symbol_ax.set_ylabel('Fraction of Compounds with Pose %s %s %s RMSD' %(lt_symbol, args.threshold, angstrom_symbol))
         symbol_ax.set_xlabel('')
         symbol_ax.set_title('Best seen by rank %d' %rank)
         symbol_ax.set(ylim=(-0.1,1.1))
@@ -254,7 +264,7 @@ for rank in [1,3,5]:
                 data=rank_summary, split=True, edgecolor='black', size=7,
                 linewidth=0, palette = palette, ax=ax,
                 alpha=0.7, order=order)
-        ax.set_ylabel(r'Fraction of Compounds\nwith Pose $\leq %s \AA$ RMSD' %args.threshold)
+        ax.set_ylabel('Fraction of Compounds with Pose %s %s %s RMSD' %('$\u2264$', args.threshold, '$\u212B$'))
         ax.set_xlabel('')
         ax.set_title('Best seen by rank %d' %rank)
         ax.set(ylim=(-0.1,1.1))

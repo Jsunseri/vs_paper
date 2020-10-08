@@ -20,7 +20,7 @@ paper_palettes['CNN Scoring Refine'] = '#877b25'
 paper_palettes['Experiment'] = '#498540'
 paper_palettes['Vinardo'] = '#F2CC86'
 paper_palettes['dense-CNNscore-mean'] = '#60DFC4'
-paper_palettes['dense-CNNaffinity-mean'] = '#5dc3bf'
+paper_palettes['dense-CNNaffinity-mean'] = '#399a97'
 paper_palettes['dense_consensus'] = '#cdf2dd'
 paper_palettes['crossdock_default2018-CNNscore-mean'] = '#FFA502'
 paper_palettes['crossdock_default2018-CNNaffinity-mean'] = '#C96424'
@@ -251,7 +251,7 @@ litpcba_ntemplates = {
 # u2710 == pencil2; u27b7 == arrow; u2708 == airplane; u274[4-6] == snowflakes;
 # u266E == naturalsign; u222F == surface integral; u269C == fleur-de-lys;
 # u29AC == angle; u27BF == [undefined but i like the dummy symbol]; u22CA == semijoin; 
-swarm_markers = [r'$\clubsuit$', r'$\spadesuit$', '$\u2665$', '*', 
+swarm_markers = [r'$\clubsuit$', r'$\spadesuit$', '$\u2665$', '$\u2605$', 
         '$\u265B$', '$\u265E$', '$\u265C$',
         '$\u2602$', '$\u266A$', '$\u2702$', 
         '$\u2708$', '$\u2744$', '$\u27b7$', 
