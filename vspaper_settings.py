@@ -8,6 +8,8 @@ backup_palette = ['#003f5c', '#665191', '#d45087', '#f95d6a', '#ffa600',
 
 paper_palettes = {}
 paper_palettes['Vina'] = '#000000' #the original CNN paper used ccbb44
+paper_palettes['Best Available\n(Vina)'] = '#AF0000'
+paper_palettes['Best Available\n(Vinardo)'] = '#BDBF00'
 paper_palettes['CSAR'] = '#332288'
 paper_palettes['DUD-E'] = '#4477aa'
 paper_palettes['2:1'] = '#88ccee'
@@ -203,41 +205,41 @@ litpcba_successes = {
         }
 
 litpcba_order = [
-        'ADRB2',
+        'OPRK1', 
+        'FEN1', 
+        'VDR',
+        'KAT2A', 
+        'GBA', 
+        'TP53', 
+        'ADRB2', 
         'ALDH1', 
+        'PKM2', 
+        'MTORC1', 
+        'IDH1', 
         'ESR1 ago', 
         'ESR1 ant', 
-        'FEN1', 
-        'GBA', 
-        'IDH1', 
-        'KAT2A', 
         'MAPK1', 
-        'MTORC1', 
-        'OPRK1', 
-        'PKM2', 
-        'PPARG', 
-        'TP53', 
-        'VDR'
+        'PPARG'
         ]
 
 litpcba_ntemplates = {
+        'OPRK1': 1, 
+        'FEN1': 1, 
+        'VDR': 2,
+        'KAT2A': 3, 
+        'GBA': 6, 
+        'TP53': 6, 
         'ADRB2': 8, 
         'ALDH1': 8, 
+        'PKM2': 9, 
+        'MTORC1': 11, 
+        'IDH1': 14, 
         'ESR1 ago': 15, 
         'ESR1_ago': 15, 
         'ESR1 ant': 15, 
         'ESR1_ant': 15, 
-        'FEN1': 1, 
-        'GBA': 6, 
-        'IDH1': 14, 
-        'KAT2A': 3, 
         'MAPK1': 15, 
-        'MTORC1': 11, 
-        'OPRK1': 1, 
-        'PKM2': 9, 
-        'PPARG': 15, 
-        'TP53': 6, 
-        'VDR': 2
+        'PPARG': 15
         }
 
 # u2665 == filled heart; u2602 == umbrella; u260e == telephone; 

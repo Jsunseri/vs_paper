@@ -4,11 +4,13 @@ import glob, sys, os, argparse
 import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as plt
+import matplotlib.lines as mlines
 
 import seaborn as sns
 import pandas as pd
+from tabulate import tabulate
 
-from vspaper_settings import paper_palettes, backup_palette, name_map, reverse_map, swarm_markers, litpcba_ntemplates, litpcba_order
+from vspaper_settings import paper_palettes, backup_palette, name_map, reverse_map, swarm_markers, litpcba_ntemplates, litpcba_order, marker_sizes
 
 # let's do clustered barplots for top1/top3/top5 averaged across targets
 # because we had that previously
@@ -18,7 +20,9 @@ from vspaper_settings import paper_palettes, backup_palette, name_map, reverse_m
 # then also do correlation plot for top1/top3/top5 RMSD fraction vs AUC/NEF
 
 # need it for select bolded text in the legend
-mpl.rc('text', usetex=True)
+# mpl.rc('text', usetex=True)
+# mpl.rc('text.latex', preamble=r'\usepackage[utf8x]{inputenc}')
+# mpl.rcParams['mathtext.fontset'] = 'cm'
 
 parser = argparse.ArgumentParser(description='Plot summary of pose prediction '
         'performance and correlation between pose prediction and virtual '
@@ -36,6 +40,7 @@ parser.add_argument('--EFs', nargs='*', default=[], help='Normalized EF1% '
         'summary files corresponding to the methods in the score summary files')
 parser.add_argument('-t', '--threshold', default=2.5, type=float,
         help='Threshold defining "good" poses')
+parser.add_argument('-o', '--outprefix', default='', help='Output prefix for figure names')
 args = parser.parse_args()
 
 infocols = ["Rank", "Compound", "Weight", "RMSD", "Target", "File"]
@@ -86,19 +91,17 @@ for d in cnn:
 
 # drop the individual ensemble predictions
 df = df[infocols + methods]
-# df = pd.melt(df, id_vars=infocols, value_vars=methods, var_name='Method', value_name='Prediction')
 vina_mins = df.groupby(['Target', 'Compound']).RMSD.min()
 vina_num_goodposes = vina_mins.loc[vina_mins <=
         args.threshold].groupby(['Target']).size().reset_index(name='Best Available\n(Vina)')
 vina_num_compounds = vina_mins.groupby(['Target']).size().reset_index(name='Number of Templates')
 best_summary = pd.merge(vina_num_goodposes, vina_num_compounds, on=['Target'], sort=False)
-best_summary['Best Available\nFraction\n(Vina)'] = best_summary['Best Available\n(Vina)'] / best_summary['Number of Templates']
+best_summary['Prediction'] = best_summary['Best Available\n(Vina)'] / best_summary['Number of Templates']
+best_summary['Method'] = 'Best Available\n(Vina)'
 
 # for boxplot, build up a final DataFrame of fraction of "good" compounds per
-# target for given rank N, with cols Target TopN Method
+# target for given rank N
 # include Method == 'Best Vina' and Method == 'Best Vinardo'
-# groupby method, compute mean of top1/top3/top5/best cols
-# TARGET METHOD TOP1_RMSD TOP3_RMSD TOP5_RMSD 
 best = 'Cumulative Best RMSD'
 for i,method in enumerate(methods):
     df = df.sort_values(method, ascending=False)
@@ -111,16 +114,24 @@ for i,method in enumerate(methods):
     for rank in [1,3,5]:
         keepcols = [method,'Rank', best, 'Target']
         this_summary = df[keepcols].loc[(df['Rank'] == rank) & (df[best] <=
-                        args.threshold)].groupby('Target').size().reset_index(name=method)
+                        args.threshold)].groupby('Target').size().reset_index(name='Prediction')
         this_summary['Rank'] = rank
         summary = pd.concat([summary, this_summary], ignore_index=True, sort=False)
+    summary['Method'] = method
     try:
-        overall_summary = pd.merge(overall_summary, summary, on=['Target', 'Rank'], sort=False)
+        overall_summary = pd.concat([overall_summary, summary], ignore_index=True, sort=False)
     except NameError:
         overall_summary = summary
-summary = pd.merge(overall_summary, best_summary, on=['Target'], sort=False)
-for method in methods:
-    summary[method] = summary[method] / summary['Number of Templates']
+overall_summary = pd.merge(overall_summary, best_summary[['Target', 'Number of Templates']],
+        on=['Target'], sort=False)
+overall_summary['Prediction'] = overall_summary['Prediction'] / overall_summary['Number of Templates']
+
+# add in a dummy rank column and concat the "best" data for each included rank
+for rank in [1,3,5]:
+    best_summary['Rank'] = rank
+    overall_summary = pd.concat([overall_summary, 
+        best_summary[['Target', 'Rank', 'Prediction', 'Method', 'Number of Templates']]], 
+        ignore_index=True, sort=False)
 
 # get Vinardo preds too, if we have them
 vinardo_df = None
@@ -135,8 +146,10 @@ for i,f in enumerate(args.vinardo):
             args.threshold].groupby(['Target']).size().reset_index(name='Best Available\n(Vinardo)')
         vinardo_num_compounds = vinardo_mins.groupby(['Target']).size().reset_index(name='Number of Templates')
         best_vinardo_summary = pd.merge(vinardo_num_goodposes, vinardo_num_compounds, on=['Target'], sort=False)
-        best_vinardo_summary['Best Available\nFraction\n(Vinardo)'] = \
+        best_vinardo_summary['Prediction'] = \
                     best_vinardo_summary['Best Available\n(Vinardo)'] / best_vinardo_summary['Number of Templates']
+        best_vinardo_summary['Method'] = 'Best Available\n(Vinardo)'
+
         vinardo_df = vinardo_df.sort_values('Vinardo', ascending=False)
         grouped_df = vinardo_df.groupby(['Target', 'Compound'])
         vinardo_df[best] = grouped_df.RMSD.cummin()
@@ -147,123 +160,102 @@ for i,f in enumerate(args.vinardo):
         for rank in [1,3,5]:
             keepcols = ['Vinardo', 'Rank', best, 'Target']
             this_summary = vinardo_df[keepcols].loc[(vinardo_df['Rank'] == rank) & (vinardo_df[best] <=
-                            args.threshold)].groupby('Target').size().reset_index(name='Vinardo')
+                            args.threshold)].groupby('Target').size().reset_index(name='Prediction')
             this_summary['Rank'] = rank
             vinardo_summary = pd.concat([vinardo_summary, this_summary], ignore_index=True, sort=False)
-        vinardo_summary = pd.merge(vinardo_summary, best_vinardo_summary, on=['Target'], sort=False)
-        vinardo_summary['Vinardo'] = vinardo_summary['Vinardo'] / vinardo_summary['Number of Templates']
-        summary = pd.merge(summary, vinardo_summary, on=['Target', 'Rank'], sort=False, 
-                suffixes=('_Vina', '_Vinardo'))
+        vinardo_summary['Method'] = 'Vinardo'
+        vinardo_summary = pd.merge(vinardo_summary, best_vinardo_summary[['Target', 'Number of Templates']], 
+                on=['Target'], sort=False)
+        vinardo_summary['Prediction'] = vinardo_summary['Prediction'] / vinardo_summary['Number of Templates']
+        for rank in [1,3,5]:
+            best_vinardo_summary['Rank'] = rank
+            vinardo_summary = pd.concat([vinardo_summary, 
+                best_vinardo_summary[['Target', 'Rank', 'Prediction', 'Method', 'Number of Templates']]],
+                ignore_index=True, sort=False)
+        overall_summary = pd.concat([overall_summary, vinardo_summary], ignore_index=True,
+                sort=False)
 
-targets = summary['Target'].unique().tolist()
+overall_summary['Target'] = overall_summary['Target'].str.replace('_', ' ', regex=False)
+# i use the order to enforce a specific symbol assignment and consistent legends
+targets = overall_summary['Target'].unique().tolist()
 if len(set(targets).intersection(litpcba_order)) == len(targets):
     targets = [t for t in litpcba_order if t in targets]
-if len(targets) <= 20:
-    symbol_fig,symbol_ax = plt.subplots(figsize=(12.8,9.6))
-    grouped = boxplot_df.groupby(['Method'], as_index=False)
-    medians = grouped['AUC'].median()
-    medians.sort_values(by='AUC', inplace=True)
-    order = medians['Method'].tolist()
-    leghands = []
-    # fill in info about targets and how we'll display them
-    success_info = True
-    for target in targets:
-        if target not in litpcba_successes:
-            success_info = False
-            break
-    markerdict = {}
-    mew = 0.5
-    for marker_id,target in enumerate(targets):
-        marker = swarm_markers[marker_id]
-        if marker in marker_sizes:
-            size = marker_sizes[marker]
-        else:
-            size = 14
-        markerdict[target] = (marker,size)
-        if success_info:
-            leghands.append(mlines.Line2D([], [], color='black',
-                fillstyle='none', marker=marker, linestyle='None',
-                mew=0.5, #linewidth=1, 
-                markersize=size, label='%s (%s)' %(target,' '.join(litpcba_successes[target]))))
-        else:
-            leghands.append(mlines.Line2D([], [], color='black',
-                fillstyle='none', marker=marker, linestyle='None',
-                mew=0.5,
-                markersize=size, label=target))
-    _,dummyax = plt.subplots(figsize=(12.8,9.6))
-    plt.sca(dummyax)
-    g = sns.swarmplot(x='Method', y='AUC',
-            data=boxplot_df,
-            dodge=True, size=27,
-            linewidth=mew,
-            alpha=0.7, 
-            palette=palette, 
-            edgecolors='none',
-            order=order)
-    artists = g.get_children()
-    offsets = []
-    for a in artists:
-        if type(a) is mpl.collections.PathCollection:
-            offsets.append(a.get_offsets().tolist())
-    if not offsets:
-        sys.exit('Cannot obtain offsets for scatterplot with unique per-target symbols')
-    assert len(order) == len(offsets), ('List of methods is '
-    'length %d but offsets is length %d' %(len(order),len(offsets)))
-    plt.sca(symbol_ax)
-    for mnum,points in enumerate(offsets):
-        # each PathCollection will correspond to a method,
-        # in the order specified by the "order" variable;
-        # i thought 
-        # the order within the collection corresponded to
-        # the order the targets appear but that seems false so
-        # i'm arduously looking it up instead
-        m = order[mnum]
-        t_order = boxplot_df.loc[boxplot_df['Method'] == m]['Target'].tolist()
-        assert len(points) == len(t_order), ('%d points in PathCollection %d but boxplot_dat '
-        'for method %s has %d points' %(len(points), mnum, m, len(t_order)))
-        for point in points:
-            auc = point[1]
-            found = False
-            for elem in boxplot_dat:
-                if (elem['Method'] == m) and (round(elem['AUC'],4) == round(auc,4)):
-                    t = elem['Target']
-                    found = True
-                    break
-            if not found:
-                sys.exit('Never found AUC %f for method %s' %(auc, m))
-            marker,size = markerdict[t]
-            symbol_ax.plot(point[0], auc, ms=size,
-                    linestyle='None',
-                    mew=mew, alpha=0.7,
-                    mec='black',
-                    color=palette[m], marker=marker, zorder=3)
-    sns.boxplot(x='Method', y='AUC', data=boxplot_df,
-            color='white', ax=symbol_ax, order=order, 
-            showfliers=False, zorder=2)
-    symbol_ax.legend(handles=leghands, bbox_to_anchor=(1.27, 1.015),
-            frameon=True, loc='upper right')
-    # symbol_ax.legend(handles=leghands, loc='lower right', ncol=2, 
-            # frameon=True)
-    symbol_ax.set_ylabel('AUC')
-    symbol_ax.set_xlabel('')
-    symbol_ax.set(ylim=(0,1.1))
-    symbol_xlims = symbol_ax.get_xlim()
-    symbol_ax.plot([symbol_xlims[0],symbol_xlims[1]],[0.5, 0.5], linestyle='--', color='gray',
-            zorder=1, alpha=0.5)
-    if not args.color_scheme == 'overlap' and not args.color_scheme == 'vspaper':
-        for tick in symbol_ax.get_xticklabels():
-            tick.set_rotation(90)
-    symbol_fig.savefig(args.outprefix+'_differentmarkers_auc_boxplot.pdf', bbox_inches='tight')
-else:
-    grouped = boxplot_df.groupby(['Method'], as_index=False)
-    medians = grouped['AUC'].median()
-    medians.sort_values(by='AUC', inplace=True)
-    order = medians['Method'].tolist()
-    sns.boxplot(x='Method', y='AUC', data=boxplot_df,
-            color='white', ax=auc_ax, order=order, 
-            showfliers=False)
-    
-    sns.swarmplot(x='Method', y='AUC',
-            data=boxplot_df, split=True, edgecolor='black', size=7,
-            linewidth=0, palette = palette, ax=auc_ax,
-            alpha=0.7, order=order)
+
+methods = overall_summary['Method'].unique().tolist()
+palette = {}
+for method in methods:
+    palette[method] = paper_palettes[method] if method in \
+        paper_palettes else backup_palette[methods.index(method) % len(backup_palette)]
+for rank in [1,3,5]:
+    rank_summary = overall_summary.loc[overall_summary['Rank'] == rank]
+    # print(tabulate(rank_summary, headers='keys', tablefmt='psql'))
+    if len(targets) <= 20:
+        symbol_fig,symbol_ax = plt.subplots(figsize=(18,10))
+        grouped = rank_summary.groupby(['Method'], as_index=False)
+        medians = grouped['Prediction'].median()
+        medians.sort_values(by='Prediction', inplace=True)
+        order = medians['Method'].tolist()
+        leghands = []
+        # fill in info about targets and how we'll display them
+        template_info = True
+        for target in targets:
+            if target not in litpcba_ntemplates:
+                template_info = False
+                break
+        markerdict = {}
+        mew = 0.5
+        for marker_id,target in enumerate(targets):
+            marker = swarm_markers[marker_id]
+            size = 22
+            markerdict[target] = (marker,size)
+            if template_info:
+                ntemp = str(litpcba_ntemplates[target])
+                # if ntemp == '1':
+                    # ntemp = r'$\textbf{%s}$' %ntemp
+                leghands.append(mlines.Line2D([], [], color='black',
+                    fillstyle='none', marker=marker, linestyle='None',
+                    mew=mew, 
+                    markersize=18, label='%s (%s)' %(target,ntemp)))
+            else:
+                leghands.append(mlines.Line2D([], [], color='black',
+                    fillstyle='none', marker=marker, linestyle='None',
+                    mew=mew,
+                    markersize=18, label=target))
+            g = sns.stripplot(x='Method', y='Prediction',
+                    data=rank_summary[rank_summary['Target'] == target],
+                    dodge=True, edgecolor='black',
+                    jitter=0.33, size=size,
+                    linewidth=mew,
+                    alpha=0.7, 
+                    marker=marker,
+                    palette=palette, 
+                    order=order, ax=symbol_ax)
+        sns.boxplot(x='Method', y='Prediction', data=rank_summary,
+                color='white', ax=symbol_ax, order=order, 
+                showfliers=False, zorder=2)
+        symbol_ax.set_ylabel(r'Fraction of Compounds with Pose $\leq %s \AA$ RMSD' %args.threshold)
+        symbol_ax.set_xlabel('')
+        symbol_ax.set_title('Best seen by rank %d' %rank)
+        symbol_ax.set(ylim=(-0.1,1.1))
+        symbol_ax.legend(handles=leghands, bbox_to_anchor=(1.15, 1.015),
+                frameon=True, loc='upper right')
+        symbol_fig.savefig(args.outprefix+'rank%d_differentmarkers_rmsd_boxplot.pdf' %rank, bbox_inches='tight')
+    else:
+        fig,ax = plt.subplots(figsize=(12.8,9.6))
+        grouped = rank_summary.groupby(['Method'], as_index=False)
+        medians = grouped['Prediction'].median()
+        medians.sort_values(by='Prediction', inplace=True)
+        order = medians['Method'].tolist()
+        sns.boxplot(x='Method', y='Prediction', data=rank_summary,
+                color='white', ax=ax, order=order, 
+                showfliers=False)
+        
+        sns.swarmplot(x='Method', y='Prediction',
+                data=rank_summary, split=True, edgecolor='black', size=7,
+                linewidth=0, palette = palette, ax=ax,
+                alpha=0.7, order=order)
+        ax.set_ylabel(r'Fraction of Compounds\nwith Pose $\leq %s \AA$ RMSD' %args.threshold)
+        ax.set_xlabel('')
+        ax.set_title('Best seen by rank %d' %rank)
+        ax.set(ylim=(-0.1,1.1))
+        symbol_fig.savefig(args.outprefix+'rank%d_rmsd_boxplot.pdf' %rank, bbox_inches='tight')
