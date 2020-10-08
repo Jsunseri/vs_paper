@@ -211,10 +211,10 @@ for rank in [1,3,5]:
                 break
         markerdict = {}
         mew = 0.5
+        size = 22
         for marker_id,target in enumerate(targets):
             marker = r'$\mathsf{%s}$' % (swarm_markers[marker_id].replace('$',''))
             # marker = swarm_markers[marker_id]
-            size = 22
             markerdict[target] = (marker,size)
             if template_info:
                 ntemp = str(litpcba_ntemplates[target])
@@ -229,15 +229,58 @@ for rank in [1,3,5]:
                     fillstyle='none', marker=marker, linestyle='None',
                     mew=mew,
                     markersize=18, label=target))
-            g = sns.stripplot(x='Method', y='Prediction',
-                    data=rank_summary[rank_summary['Target'] == target],
-                    dodge=True, edgecolor='black',
-                    jitter=0.33, size=size,
-                    linewidth=mew,
-                    alpha=0.7, 
-                    marker=marker,
-                    palette=palette, 
-                    order=order, ax=symbol_ax)
+        _,dummyax = plt.subplots(figsize=(12.8,9.6))
+        plt.sca(dummyax)
+        g = sns.swarmplot(x='Method', y='Prediction',
+                data=rank_summary,
+                dodge=True, size=14,
+                linewidth=mew,
+                alpha=0.7, 
+                palette=palette, 
+                edgecolors='none',
+                order=order)
+        artists = g.get_children()
+        offsets = []
+        for a in artists:
+            if type(a) is mpl.collections.PathCollection:
+                offsets.append(a.get_offsets().tolist())
+        if not offsets:
+            sys.exit('Cannot obtain offsets for scatterplot with unique per-target symbols')
+        assert len(order) == len(offsets), ('List of methods is '
+        'length %d but offsets is length %d' %(len(order),len(offsets)))
+        plt.sca(symbol_ax)
+        for mnum,points in enumerate(offsets):
+            # each PathCollection will correspond to a method,
+            # in the order specified by the "order" variable;
+            # i thought 
+            # the order within the collection corresponded to
+            # the order the targets appear but that seems false so
+            # i'm arduously looking it up instead
+            m = order[mnum]
+            t_order = rank_summary.loc[rank_summary['Method'] == m]['Target'].tolist()
+            assert len(points) == len(t_order), ('%d points in PathCollection %d but DataFrame '
+            'for method %s has %d points' %(len(points), mnum, m, len(t_order)))
+            found_targets = []
+            for point in points:
+                pred = point[1]
+                found = False
+                for elem in rank_summary.loc[rank_summary['Method'] == m].itertuples():
+                    if round(elem.Prediction,4) == round(pred,4):
+                        t = elem.Target
+                        if t in found_targets:
+                            continue
+                        else:
+                            found_targets.append(t)
+                        found = True
+                        break
+                if not found:
+                    sys.exit('Never found prediction %f for method %s' %(pred, m))
+                marker,size = markerdict[t]
+                symbol_ax.plot(point[0], pred, ms=size,
+                        linestyle='None',
+                        mew=mew, alpha=0.7,
+                        mec='black',
+                        color=palette[m], marker=marker, zorder=3)
         sns.boxplot(x='Method', y='Prediction', data=rank_summary,
                 color='white', ax=symbol_ax, order=order, 
                 showfliers=False, zorder=2)

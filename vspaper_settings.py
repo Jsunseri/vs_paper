@@ -251,9 +251,9 @@ litpcba_ntemplates = {
 # u2710 == pencil2; u27b7 == arrow; u2708 == airplane; u274[4-6] == snowflakes;
 # u266E == naturalsign; u222F == surface integral; u269C == fleur-de-lys;
 # u29AC == angle; u27BF == [undefined but i like the dummy symbol]; u22CA == semijoin; 
-swarm_markers = [r'$\clubsuit$', r'$\spadesuit$', '$\u2665$', '$\u2605$', 
-        '$\u265B$', '$\u265E$', '$\u265C$',
-        '$\u2602$', '$\u266A$', '$\u2702$', 
+swarm_markers = [r'$\clubsuit$', '$\u265B$', '$\u2702$', '$\u2605$', 
+         '$\u266A$', '$\u265E$', '$\u265C$',
+        '$\u2602$', r'$\spadesuit$', '$\u2665$',
         '$\u2708$', '$\u2744$', '$\u27b7$', 
         '$\u29AC$', '$\u222F$', '$\u263E$', 
         '$\u22CA$', 
