@@ -45,7 +45,7 @@ parser.add_argument('-v', '--vinardo', nargs='*', default=[], help='Files summar
 parser.add_argument('--auc', nargs='*', default=[], help='Comma-separated list '
         'of (method name, AUC by-target summary file) corresponding to the methods ' 
         'in the score summary files')
-parser.add_argument('--EFs', nargs='*', default=[], help='Comma-separated list '
+parser.add_argument('--ef', nargs='*', default=[], help='Comma-separated list '
         'of (method name, Normalized EF1% summary file) corresponding to the methods '
         'in the score summary files')
 parser.add_argument('-t', '--threshold', default=2.5, type=float,
@@ -325,20 +325,29 @@ for rank in [1,3,5]:
 paper_methods = ['Vina', 'Vinardo', 'Dense\n(Pose)', 'Dense\n(Affinity)', 
 		 'Cross-Docked\n(Pose)', 'Cross-Docked\n(Affinity)',
  		 'General\n(Pose)', 'General\n(Affinity)']
-if args.auc:
-    for pair in args.auc:
+metrics = {}
+if args.auc: 
+    metrics['AUC'] = args.auc
+if args.ef: 
+    metrics['Normalized EF1%'] = args.ef
+for metric,pairs in metrics.items():
+    if metric == 'AUC':
+        cols = ['Target', 'AUC', 'APS']
+        outname = 'auc'
+    else:
+        cols = ['Target', 'EF1%', 'Normalized EF1%']
+        outname = 'nef'
+    auc_df = pd.DataFrame()
+    for pair in pairs:
         mname,fname = pair.split(',')
-        tmp_df = pd.read_csv(fname, delim_whitespace=True, header=None, names=['Target', 'AUC', 'APS'])
+        tmp_df = pd.read_csv(fname, delim_whitespace=True, header=None, names=cols)
         if mname in name_map:
             mname = name_map[mname]
         tmp_df['Method'] = mname
-        try:
-            auc_df = pd.concat([auc_df, tmp_df], ignore_index=True, sort=False)
-        except NameError:
-            auc_df = tmp_df
-    # confirm we have AUC data for all methods
+        auc_df = pd.concat([auc_df, tmp_df], ignore_index=True, sort=False)
+    # confirm we have metric data for all methods
     assert len(set(methods).intersection(auc_df['Method'].unique().tolist())) == len(methods), \
-            'Missing methods from AUC data. Required methods are %s' %(' '.join(methods))
+            'Missing methods from %s data. Required methods are %s' %(metric, ' '.join(methods))
     auc_df['Target'] = auc_df['Target'].str.replace('_', ' ', regex=False)
     metric_df = pd.merge(overall_summary, auc_df, on=['Method', 'Target'],
             how='outer', sort=False)
@@ -355,17 +364,20 @@ if args.auc:
                 # get correlation
                 for j in [i,i+1]:
                     sub_df = this_df.loc[this_df['Method'] == paper_methods[j]]
-                    r = spearmanr(sub_df['Prediction'].to_numpy(), sub_df['AUC'].to_numpy())[0]
+                    r = spearmanr(sub_df['Prediction'].to_numpy(), sub_df[metric].to_numpy())[0]
                     newname = '%s\n' %(paper_methods[j]) + r'$\mathrm{\rho=%0.3f}$' %(r)
                     this_df = this_df.replace(paper_methods[j], newname)
                     this_palette[newname] = palette[paper_methods[j]]
 
                 this_df = this_df.astype({'Method': 'category'})
-                g = sns.jointplot(data=this_df, x='Prediction', y='AUC', hue='Method', palette=this_palette, 
+                g = sns.jointplot(data=this_df, x='Prediction', y=metric, hue='Method', palette=this_palette, 
                                   s=28, alpha=0.7)
                 g.set_axis_labels(xlabel='Fraction of Low RMSD Compounds at Rank %d' %rank)
-                g.ax_joint.set_ylabel('AUC')
-                g.ax_joint.set_ylim((0,1.1))
+                g.ax_joint.set_ylabel(metric)
+                if metric == 'AUC':
+                    g.ax_joint.set_ylim((0,1.0))
+                else:
+                    g.ax_joint.set_ylim((-0.1,0.5))
                 SeabornFig2Grid(g, fig, gs[i//2])
             gs.tight_layout(fig)
             gs.update(bottom=0.03, left=0.04)
@@ -377,7 +389,7 @@ if args.auc:
             fig = plt.figure(figsize=(15,15))
             for i in range(0,total_plots):
                 this_df = metric_df.loc[(metric_df['Rank']==rank) & (metric_df['Method'] == methods[i])]
-                g = sns.jointplot(data=this_df, x='Prediction', y='AUC', hue='Method', palette=palette)
+                g = sns.jointplot(data=this_df, x='Prediction', y=metric, hue='Method', palette=palette)
                 g.set_axis_labels(xlabel='Fraction of Low RMSD Compounds at Rank %d' %rank)
                 SeabornFig2Grid(g, fig, gs[i])
-        plt.savefig(args.outprefix+'rank%d_auc_jointplot.pdf' %rank, bbox_inches='tight')
+        plt.savefig(args.outprefix+'rank%d_%s_jointplot.pdf' %(rank,outname), bbox_inches='tight')
