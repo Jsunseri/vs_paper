@@ -17,7 +17,9 @@ from sklearn.metrics import roc_curve, roc_auc_score
 from sklearn.metrics import precision_recall_curve
 from sklearn.metrics import average_precision_score
 
-from vspaper_settings import paper_palettes, backup_palette, name_map, reverse_map, swarm_markers, litpcba_successes, litpcba_order, marker_sizes
+from vspaper_settings import (paper_palettes, backup_palette, name_map, 
+			      reverse_map, swarm_markers, litpcba_successes, 
+			      litpcba_order, marker_sizes)
 
 # In matplotlib < 1.5, plt.fill_between does not have a 'step'
 # argument

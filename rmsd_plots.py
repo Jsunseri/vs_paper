@@ -5,12 +5,15 @@ import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
+import matplotlib.gridspec as gridspec
 
 import seaborn as sns
 import pandas as pd
 from tabulate import tabulate
 
-from vspaper_settings import paper_palettes, backup_palette, name_map, reverse_map, swarm_markers, litpcba_ntemplates, litpcba_order, marker_sizes
+from vspaper_settings import (paper_palettes, backup_palette, name_map, reverse_map, 
+			      swarm_markers, litpcba_ntemplates, litpcba_order, marker_sizes,
+			      SeabornFig2Grid)
 
 # let's do clustered barplots for top1/top3/top5 averaged across targets
 # because we had that previously
@@ -37,10 +40,12 @@ parser.add_argument('-s', '--summary', nargs='+', help='Files summarizing '
 parser.add_argument('-v', '--vinardo', nargs='*', default=[], help='Files summarizing Vinardo '
         'poses, scores, and RMSDs, with a header row on the first line, '
         'including cols [Rank Compound Vinardo Weight RMSD Target File]')
-parser.add_argument('--aucs', nargs='*', default=[], help='AUC by-target '
-        'summary files corresponding to the methods in the score summary files')
-parser.add_argument('--EFs', nargs='*', default=[], help='Normalized EF1% '
-        'summary files corresponding to the methods in the score summary files')
+parser.add_argument('--auc', nargs='*', default=[], help='Comma-separated list '
+        'of (method name, AUC by-target summary file) corresponding to the methods ' 
+        'in the score summary files')
+parser.add_argument('--EFs', nargs='*', default=[], help='Comma-separated list '
+        'of (method name, Normalized EF1% summary file) corresponding to the methods '
+        'in the score summary files')
 parser.add_argument('-t', '--threshold', default=2.5, type=float,
         help='Threshold defining "good" poses')
 parser.add_argument('-o', '--outprefix', default='', help='Output prefix for figure names')
@@ -63,7 +68,7 @@ for f in args.summary:
         tmp_dfs[target] = pd.merge(tmp_dfs[target], this_df, on=infocols + ['Vina'], sort=False, how='outer')
     else:
         tmp_dfs[target] = this_df
-df = pd.concat(tmp_dfs.values(), ignore_index=True)
+df = pd.concat(tmp_dfs.values(), ignore_index=True, sort=True)
 
 cols = list(df)
 methods = []
@@ -188,11 +193,11 @@ targets = overall_summary['Target'].unique().tolist()
 if len(set(targets).intersection(litpcba_order)) == len(targets):
     targets = [t for t in litpcba_order if t in targets]
 
-methods = overall_summary['Method'].unique().tolist()
+rank_methods = overall_summary['Method'].unique().tolist()
 palette = {}
-for method in methods:
+for method in rank_methods:
     palette[method] = paper_palettes[method] if method in \
-        paper_palettes else backup_palette[methods.index(method) % len(backup_palette)]
+        paper_palettes else backup_palette[rank_methods.index(method) % len(backup_palette)]
 for rank in [1,3,5]:
     rank_summary = overall_summary.loc[overall_summary['Rank'] == rank]
     # print(tabulate(rank_summary, headers='keys', tablefmt='psql'))
@@ -307,8 +312,64 @@ for rank in [1,3,5]:
                 data=rank_summary, split=True, edgecolor='black', size=7,
                 linewidth=0, palette = palette, ax=ax,
                 alpha=0.7, order=order)
-        ax.set_ylabel('Fraction of Compounds with Pose %s %s %s RMSD' %('$\u2264$', args.threshold, '$\u212B$'))
+        lt_symbol = r'$\mathrm{%s}$' % '\u2264'
+        angstrom_symbol = r'$\mathrm{%s}$' % '\u212B'
+        ax.set_ylabel('Fraction of Compounds with Pose %s %s %s RMSD' %(lt_symbol, args.threshold, angstrom_symbol))
         ax.set_xlabel('')
         ax.set_title('Best seen by rank %d' %rank)
         ax.set(ylim=(-0.1,1.1))
         symbol_fig.savefig(args.outprefix+'rank%d_rmsd_boxplot.pdf' %rank, bbox_inches='tight')
+
+paper_methods = ['Vina', 'Vinardo', 'Dense\n(Pose)', 'Dense\n(Affinity)', 
+		 'Cross-Docked\n(Pose)', 'Cross-Docked\n(Affinity)',
+ 		 'General\n(Pose)', 'General\n(Affinity)']
+if args.auc:
+    for pair in args.auc:
+        mname,fname = pair.split(',')
+        tmp_df = pd.read_csv(fname, delim_whitespace=True, header=None, names=['Target', 'AUC', 'APS'])
+        if mname in name_map:
+            mname = name_map[mname]
+        tmp_df['Method'] = mname
+        try:
+            auc_df = pd.concat([auc_df, tmp_df], ignore_index=True, sort=False)
+        except NameError:
+            auc_df = tmp_df
+    # confirm we have AUC data for all methods
+    assert len(set(methods).intersection(auc_df['Method'].unique().tolist())) == len(methods), \
+            'Missing methods from AUC data. Required methods are %s' %(' '.join(methods))
+    auc_df['Target'] = auc_df['Target'].str.replace('_', ' ', regex=False)
+    metric_df = pd.merge(overall_summary, auc_df, on=['Method', 'Target'],
+            how='outer', sort=False)
+    nmethods = len(methods)
+    # do these as a grid of jointplots, and special-case the methods for the VS paper
+    for rank in [1,3,5]:
+        if len(set(methods).intersection(paper_methods)) == nmethods:
+            gs = gridspec.GridSpec(2, 2)
+            fig = plt.figure(figsize=(15,15))
+            for i in range(0,nmethods,2):
+                this_palette = {}
+                this_palette[paper_methods[i]] = palette[paper_methods[i]]
+                this_palette[paper_methods[i+1]] = palette[paper_methods[i+1]]
+                this_df = metric_df.loc[metric_df['Rank']==rank]
+                this_df = this_df.loc[(metric_df['Method'] == paper_methods[i]) | (metric_df['Method'] == paper_methods[i+1])]
+                this_df = this_df.astype({'Method': 'category'})
+                g = sns.jointplot(data=this_df, x='Prediction', y='AUC', hue='Method', palette=this_palette, 
+                                  alpha=0.6)
+                g.set_axis_labels(xlabel='Fraction of Low RMSD Compounds at Rank %d' %rank)
+                g.ax_joint.set_ylabel('AUC')
+                g.ax_joint.set_ylim((0,1.1))
+                SeabornFig2Grid(g, fig, gs[i//2])
+            gs.tight_layout(fig)
+            gs.update(bottom=0.03, left=0.04)
+        else:
+            total_plots = nmethods
+            grid_width = int(math.ceil(math.sqrt(total_plots)))
+            grid_length = int(math.ceil(float(total_plots)/grid_width))
+            gs = gridspec.GridSpec(grid_length, grid_width)
+            fig = plt.figure(figsize=(15,15))
+            for i in range(0,total_plots):
+                this_df = metric_df.loc[(metric_df['Rank']==rank) & (metric_df['Method'] == methods[i])]
+                g = sns.jointplot(data=this_df, x='Prediction', y='AUC', hue='Method', palette=palette)
+                g.set_axis_labels(xlabel='Fraction of Low RMSD Compounds at Rank %d' %rank)
+                SeabornFig2Grid(g, fig, gs[i])
+        plt.savefig(args.outprefix+'rank%d_auc_jointplot.pdf' %rank, bbox_inches='tight')
