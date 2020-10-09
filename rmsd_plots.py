@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
 import matplotlib.gridspec as gridspec
 
+from scipy.stats import spearmanr
+
 import seaborn as sns
 import pandas as pd
 from tabulate import tabulate
@@ -348,13 +350,19 @@ if args.auc:
             fig = plt.figure(figsize=(15,15))
             for i in range(0,nmethods,2):
                 this_palette = {}
-                this_palette[paper_methods[i]] = palette[paper_methods[i]]
-                this_palette[paper_methods[i+1]] = palette[paper_methods[i+1]]
                 this_df = metric_df.loc[metric_df['Rank']==rank]
                 this_df = this_df.loc[(metric_df['Method'] == paper_methods[i]) | (metric_df['Method'] == paper_methods[i+1])]
+                # get correlation
+                for j in [i,i+1]:
+                    sub_df = this_df.loc[this_df['Method'] == paper_methods[j]]
+                    r = spearmanr(sub_df['Prediction'].to_numpy(), sub_df['AUC'].to_numpy())[0]
+                    newname = '%s\n' %(paper_methods[j]) + r'$\mathrm{\rho=%0.3f}$' %(r)
+                    this_df = this_df.replace(paper_methods[j], newname)
+                    this_palette[newname] = palette[paper_methods[j]]
+
                 this_df = this_df.astype({'Method': 'category'})
                 g = sns.jointplot(data=this_df, x='Prediction', y='AUC', hue='Method', palette=this_palette, 
-                                  alpha=0.6)
+                                  s=28, alpha=0.7)
                 g.set_axis_labels(xlabel='Fraction of Low RMSD Compounds at Rank %d' %rank)
                 g.ax_joint.set_ylabel('AUC')
                 g.ax_joint.set_ylim((0,1.1))
