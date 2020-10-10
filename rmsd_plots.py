@@ -17,17 +17,15 @@ from vspaper_settings import (paper_palettes, backup_palette, name_map, reverse_
 			      swarm_markers, litpcba_ntemplates, litpcba_order, marker_sizes,
 			      SeabornFig2Grid)
 
-# let's do clustered barplots for top1/top3/top5 averaged across targets
-# because we had that previously
-# also do boxplots per method, with points per target, showing fraction of
-# compounds that had a < 2A pose by rank N (with N \in {1,3,5}) and have the
-# legend show the number of templates per target
-# then also do correlation plot for top1/top3/top5 RMSD fraction vs AUC/NEF
+# + do boxplots per method, with points per target, showing fraction of
+#   compounds that had a < 2A pose by rank N (with N \in {1,3,5}) and have the
+#   legend show the number of templates per target
+#
+# + do correlation plot for top1/top3/top5 RMSD fraction vs AUC/NEF
+#
+# + do clustered barplots for top1/top3/top5 averaged across targets
+#   because we had that previously
 
-# need it for select bolded text in the legend
-# mpl.rc('text', usetex=True)
-# mpl.rc('text.latex', preamble=r'\usepackage[utf8x]{inputenc}')
-# mpl.rcParams['mathtext.fontset'] = 'cm'
 mpl.rcParams['mathtext.fontset'] = 'custom'
 mpl.rcParams['mathtext.rm'] = 'STIXGeneral'
 mpl.rcParams['mathtext.sf'] = 'DejaVu Sans'
@@ -120,6 +118,22 @@ for i,method in enumerate(methods):
     grouped_df = df.groupby(['Target', 'Compound'])
     df[best] = grouped_df.RMSD.cummin()
     df['Rank'] = grouped_df[method].rank(method="dense", ascending=False, axis=1)
+    # check the size of each group, and if it's smaller than the max rank we're going to
+    # compute statistics for (currently 5) pad its rank out to that value by duplicating the 
+    # cumulative min RMSD
+    sizes = grouped_df.size().reset_index(name='count')
+    too_small = sizes.loc[sizes['count'] < 5]
+    for data in too_small.itertuples():
+        last_rank = data.count
+        for rank in [1,3,5]:
+            if last_rank >= rank:
+                continue
+            target = data.Target
+            compound = data.Compound
+            extra = df.loc[(df['Target'] == target) & (df['Compound'] == compound) & 
+                           (df['Rank'] == last_rank)][infocols + [method, best]]
+            extra['Rank'] = rank
+            df = pd.concat([df,extra], ignore_index=True, sort=False)
     # do this so we get 0s in the counts
     df = df.astype({'Target': 'category'})
     summary = pd.DataFrame()
@@ -168,6 +182,22 @@ for i,f in enumerate(args.vinardo):
         grouped_df = vinardo_df.groupby(['Target', 'Compound'])
         vinardo_df[best] = grouped_df.RMSD.cummin()
         vinardo_df['Rank'] = grouped_df['Vinardo'].rank(method="dense", ascending=False, axis=1)
+        # check the size of each group, and if it's smaller than the max rank we're going to
+        # compute statistics for (currently 5) pad its rank out to that value by duplicating the 
+        # cumulative min RMSD
+        sizes = grouped_df.size().reset_index(name='count')
+        too_small = sizes.loc[sizes['count'] < 5]
+        for data in too_small.itertuples():
+            last_rank = data.count
+            for rank in [1,3,5]:
+                if last_rank >= rank:
+                    continue
+                target = data.Target
+                compound = data.Compound
+                extra = vinardo_df.loc[(vinardo_df['Target'] == target) & (vinardo_df['Compound'] == compound) & 
+                               (vinardo_df['Rank'] == last_rank)][infocols + ['Vinardo', best]]
+                extra['Rank'] = rank
+                vinardo_df = pd.concat([vinardo_df,extra], ignore_index=True, sort=False)
         # do this so we get 0s in the counts
         vinardo_df = vinardo_df.astype({'Target': 'category'})
         vinardo_summary = pd.DataFrame()
@@ -195,6 +225,7 @@ targets = overall_summary['Target'].unique().tolist()
 if len(set(targets).intersection(litpcba_order)) == len(targets):
     targets = [t for t in litpcba_order if t in targets]
 
+# generate per-method boxplots
 rank_methods = overall_summary['Method'].unique().tolist()
 palette = {}
 for method in rank_methods:
@@ -221,10 +252,10 @@ for rank in [1,3,5]:
         size = 22
         for marker_id,target in enumerate(targets):
             marker = r'$\mathsf{%s}$' % (swarm_markers[marker_id].replace('$',''))
-            # marker = swarm_markers[marker_id]
             markerdict[target] = (marker,size)
             if template_info:
                 ntemp = str(litpcba_ntemplates[target])
+                # uncomment to bold the redocking-only targets in the legend
                 # if ntemp == '1':
                     # ntemp = r'$\textbf{%s}$' %ntemp
                 leghands.append(mlines.Line2D([], [], color='black',
@@ -283,11 +314,36 @@ for rank in [1,3,5]:
                 if not found:
                     sys.exit('Never found prediction %f for method %s' %(pred, m))
                 marker,size = markerdict[t]
-                symbol_ax.plot(point[0], pred, ms=size,
-                        linestyle='None',
-                        mew=mew, alpha=0.7,
-                        mec='black',
-                        color=palette[m], marker=marker, zorder=3)
+                # for "best available" in this case do the method color but hatched
+                # super special-cased positions for Best Available\n(Vina) rook, snowflake, and scissors
+                extra_off = 0
+                if "Best" in m:
+                    realm = 'Vinardo' if 'Vinardo' in m else 'Vina'
+                    color = palette[realm]
+                    specials = ['\u2708', '\u265C', '\u2744', '\u2665']
+                    specials = [r'$\mathsf{%s}$' % sp for sp in specials]
+                    if realm == 'Vina' and marker in specials:
+                        extra_off = 0.05
+                        if marker in specials[2:]:
+                            extra_off += 0.05
+                        if marker == specials[-2]:
+                            extra_off += 0.02
+                        if marker == specials[-1]:
+                            extra_off += 0.05
+                else:
+                    color = palette[m]
+                symbol_ax.scatter(point[0]+extra_off, pred, s=350,
+                        linewidths=mew, alpha=0.7,
+                        edgecolors='black',
+                        color=color, marker=marker, zorder=3)
+                if "Best" in m:
+		    # have to plot twice to get hatches because independent
+                    # hatch color control is currently broken in matplotlib
+                    symbol_ax.scatter(point[0]+extra_off, pred, s=350,
+                            linewidths=mew, alpha=0.5,
+                            edgecolors='white',
+                            hatch='/////',
+                            color=color, marker=marker, zorder=3)
         sns.boxplot(x='Method', y='Prediction', data=rank_summary,
                 color='white', ax=symbol_ax, order=order, 
                 showfliers=False, zorder=2)
@@ -322,6 +378,10 @@ for rank in [1,3,5]:
         ax.set(ylim=(-0.1,1.1))
         symbol_fig.savefig(args.outprefix+'rank%d_rmsd_boxplot.pdf' %rank, bbox_inches='tight')
 
+# generate average performance at rank barplot
+mean_summary = overall_summary.groupby(['Method', 'Rank'], as_index=False)['Prediction'].mean()
+
+# generate VS metric vs pose metric jointplots
 paper_methods = ['Vina', 'Vinardo', 'Dense\n(Pose)', 'Dense\n(Affinity)', 
 		 'Cross-Docked\n(Pose)', 'Cross-Docked\n(Affinity)',
  		 'General\n(Pose)', 'General\n(Affinity)']

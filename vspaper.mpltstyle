@@ -14,20 +14,6 @@ ytick.color: .15
 axes.axisbelow: True
 axes.unicode_minus: False
 image.cmap: Greys
-# I want Computer Modern fonts, preferably without requiring a callout to Latex
-# for figure label generation
-font.family: serif
-font.serif: cmr10
-font.cursive: cmr10
-# I think the functional Unicode fallback is DejaVu Sans, unfortunately doesn't
-# seem to define the same Unicode blocks as the Serif
-# pgf.texsystem: xelatex
-# mathtext.fontset: custom
-# mathtext.rm: STIXGeneral
-# mathtext.sf: DejaVu Sans
-# mpl.rcParams['pdf.fonttype'] = 42 # a Type 3 font will be used by default
-grid.linestyle: -
-lines.solid_capstyle: round
 
 # Seaborn white parameters
 axes.grid: False
@@ -40,7 +26,13 @@ ytick.major.size: 0
 xtick.minor.size: 0
 ytick.minor.size: 0
 
-# my parameters
+# I want Computer Modern fonts, preferably without requiring a callout to Latex
+# for figure label generation
+font.family: serif
+font.serif: cmr10
+font.cursive: cmr10
+grid.linestyle: -
+lines.solid_capstyle: round
 font.size: 24
 axes.titlesize: 22
 axes.labelsize: 20
@@ -49,5 +41,15 @@ ytick.labelsize: 18
 legend.fontsize: 14
 legend.title_fontsize: 18
 figure.titlesize: 24
+hatch.color: white # this setting is currently broken due to a bug...
+hatch.linewidth: 1.0
+
 # I'd like to avoid enabling this by default, leaving it here to toggle on in case of emergency
 # text.usetex: True 
+
+# below are some options I'm not using but want to keep around just in case
+# pgf.texsystem: lualatex
+# mpl.rcParams['pdf.fonttype'] = 42 # a Type 3 font will be used by default
+# this package is apparently already loaded by matplotlib without the same options, 
+# so this preamble load fails. 
+# text.latex: preamble=r'\usepackage[utf8x]{inputenc}'
