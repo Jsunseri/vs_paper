@@ -4,17 +4,18 @@ from argparse import ArgumentParser
 from tabulate import tabulate
 
 from sklearn.metrics import roc_auc_score
-from scipy.stats import pearsonr
+from scipy.stats import spearmanr
 
 import matplotlib as mpl
-mpl.use('TKAgg')
+mpl.use('Agg')
 import matplotlib.pyplot as plt
 
 import pandas as pd
 import numpy as np
 import seaborn as sns
 
-from vspaper_settings import paper_palettes, name_map, reverse_map, swarm_markers, litpcba_order
+from vspaper_settings import (paper_palettes, name_map, reverse_map, 
+                              swarm_markers, litpcba_order)
 
 mpl.rcParams.update({'mathtext.fontset': 'cm'})
 mpl.rcParams.update({'text.usetex': 'True'})
@@ -79,7 +80,7 @@ if args.allposes:
                     edgecolor='black',
                     alpha=0.5,
                     color=paper_palettes[mean])
-            # r, _ = pearsonr(df[mean].values, df[stdev].values)
+            # r, _ = spearmanr(df[mean].values, df[stdev].values)
             # sub_ax.annotate(r'$\rho = {0:.2}$'.format(r), xy=(.1, .9),
                      # xycoords=sub_ax.transAxes, family='serif', bbox=props)
             sub_ax.set_xlabel('')
@@ -121,7 +122,7 @@ for i,method in enumerate(cnns):
                     edgecolor='black',
                     alpha=0.5,
                     color=paper_palettes[mean])
-            # r, _ = pearsonr(pred_df[mean].values, pred_df[stdev].values)
+            # r, _ = spearmanr(pred_df[mean].values, pred_df[stdev].values)
             # sub_ax.annotate(r'$\rho = {0:.2}$'.format(r), xy=(.1, .9),
                      # xycoords=sub_ax.transAxes, family='serif', bbox=props)
             sub_ax.set_xlabel('')
@@ -180,17 +181,11 @@ if args.rank:
                         (plot_num // grid_width, plot_num % grid_width),
                                         fig=fig)
                 stdev = mname.replace('mean','std')
-                sns.scatterplot(sub_df['deviation'], sub_df[stdev], 
-                        ax = sub_ax,
-                        linewidths=0.5,
-                        edgecolor='black',
-                        alpha=0.7,
-                        # shade=True,
-                        # shade_lowest=False, 
+                sub_ax.hexbin(sub_df['deviation'], sub_df[stdev], 
                         color=paper_palettes[mname])
-                # r, _ = pearsonr(sub_df[mname].values, sub_df[stdev].values)
-                # sub_ax.annotate(r'$\rho = {0:.2}$'.format(r), xy=(.1, .9),
-                         # xycoords=sub_ax.transAxes, family='serif', bbox=props)
+                r, _ = spearmanr(sub_df[mname].values, sub_df[stdev].values)
+                sub_ax.annotate(r'$\rho = {0:.2}$'.format(r), xy=(.1, .9),
+                         xycoords=sub_ax.transAxes, family='serif', bbox=props)
                 sub_ax.set_xlabel('')
                 if plot_num == 0:
                     sub_ax.set_title('Pose')
@@ -207,7 +202,7 @@ if args.rank:
                 # sub_ax.set_xticklabels([i.get_text().replace('−', '$-$') for i in sub_ax.get_xticklabels()])
     for ctype in ctypes:
         fig,_ = figinfo[ctype]
-        fig.savefig('ensemble_stdev_vs_rankdeviation_topposes_%s.png' %ctype, dpi=300, bbox_inches='tight')
+        fig.savefig('ensemble_stdev_vs_rankdeviation_topposes_hex_%s.png' %ctype, dpi=300, bbox_inches='tight')
 
 if args.rank_vs_mean:
     ctypes = ['active', 'inactive']
@@ -300,7 +295,7 @@ if args.metric:
                     edgecolor='black',
                     alpha=0.7,
                     color=paper_palettes[mname])
-            # r, _ = pearsonr(EFR[EFname].values, EFR[stdev+'-mean'].values)
+            # r, _ = spearmanr(EFR[EFname].values, EFR[stdev+'-mean'].values)
             # sub_ax.annotate(r'$\rho = {0:.2}$'.format(r), xy=(.1, .9),
                      # xycoords=sub_ax.transAxes, family='serif', bbox=props)
             sub_ax.set_xlabel('')
@@ -331,7 +326,7 @@ if args.metric:
                     edgecolor='black',
                     alpha=0.7,
                     color=paper_palettes[mname])
-            # r, _ = pearsonr(aucs['AUC'].values, aucs[stdev+'-mean'].values)
+            # r, _ = spearmanr(aucs['AUC'].values, aucs[stdev+'-mean'].values)
             # sub_ax.annotate(r'$\rho = {0:.2}$'.format(r), xy=(.1, .9),
                      # xycoords=sub_ax.transAxes, family='serif', bbox=props)
             sub_ax.set_xlabel('')
@@ -396,7 +391,7 @@ if args.similarity:
                     edgecolor='black',
                     alpha=0.7,
                     color=paper_palettes[mname])
-            # r, _ = pearsonr(sim_stdev['Similarity'].values, sim_stdev[stdev+'-mean'].values)
+            # r, _ = spearmanr(sim_stdev['Similarity'].values, sim_stdev[stdev+'-mean'].values)
             # sub_ax.annotate(r'$\rho = {0:.2}$'.format(r), xy=(.1, .9),
                      # xycoords=sub_ax.transAxes, family='serif', bbox=props)
             sub_ax.set_xlabel('')

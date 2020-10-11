@@ -457,7 +457,7 @@ for metric,pairs in metrics.items():
                 # get correlation
                 for j in [i,i+1]:
                     sub_df = this_df.loc[this_df['Method'] == paper_methods[j]]
-                    r = spearmanr(sub_df['Prediction'].to_numpy(), sub_df[metric].to_numpy())[0]
+                    r,_ = spearmanr(sub_df['Prediction'].to_numpy(), sub_df[metric].to_numpy())
                     newname = '%s\n' %(paper_methods[j]) + r'$\mathrm{\rho=%0.3f}$' %(r)
                     this_df = this_df.replace(paper_methods[j], newname)
                     this_palette[newname] = palette[paper_methods[j]]
@@ -499,7 +499,7 @@ if args.auc and args.ef:
             # get correlation
             for j in [i,i+1]:
                 sub_df = this_df.loc[this_df['Method'] == paper_methods[j]]
-                r = spearmanr(sub_df['AUC'].to_numpy(), sub_df['Normalized EF1%'].to_numpy())[0]
+                r,_ = spearmanr(sub_df['AUC'].to_numpy(), sub_df['Normalized EF1%'].to_numpy())
                 newname = '%s\n' %(paper_methods[j]) + r'$\mathrm{\rho=%0.3f}$' %(r)
                 this_df = this_df.replace(paper_methods[j], newname)
                 this_palette[newname] = palette[paper_methods[j]]
