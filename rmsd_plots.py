@@ -438,8 +438,12 @@ for metric,pairs in metrics.items():
     assert len(set(methods).intersection(auc_df['Method'].unique().tolist())) == len(methods), \
             'Missing methods from %s data. Required methods are %s' %(metric, ' '.join(methods))
     auc_df['Target'] = auc_df['Target'].str.replace('_', ' ', regex=False)
-    metric_df = pd.merge(overall_summary, auc_df, on=['Method', 'Target'],
-            how='outer', sort=False)
+    try:
+        metric_df = pd.merge(metric_df, auc_df, on=['Method', 'Target'],
+                how='outer', sort=False)
+    except NameError:
+        metric_df = pd.merge(overall_summary, auc_df, on=['Method', 'Target'],
+                how='outer', sort=False)
     nmethods = len(methods)
     # do these as a grid of jointplots, and special-case the methods for the VS paper
     for rank in [1,3,5]:
@@ -482,3 +486,46 @@ for metric,pairs in metrics.items():
                 g.set_axis_labels(xlabel='Fraction of Low RMSD Compounds at Rank %d' %rank)
                 SeabornFig2Grid(g, fig, gs[i])
         plt.savefig(args.outprefix+'rank%d_%s_jointplot.pdf' %(rank,outname), bbox_inches='tight')
+# if we have both, do EF vs AUC jointplots too
+if args.auc and args.ef:
+    outname = 'auc_vs_nef'
+    if len(set(methods).intersection(paper_methods)) == nmethods:
+        gs = gridspec.GridSpec(2, 2)
+        fig = plt.figure(figsize=(15,15))
+        for i in range(0,nmethods,2):
+            this_palette = {}
+            this_df = metric_df.loc[metric_df['Rank']==1]
+            this_df = this_df.loc[(metric_df['Method'] == paper_methods[i]) | (metric_df['Method'] == paper_methods[i+1])]
+            # get correlation
+            for j in [i,i+1]:
+                sub_df = this_df.loc[this_df['Method'] == paper_methods[j]]
+                r = spearmanr(sub_df['AUC'].to_numpy(), sub_df['Normalized EF1%'].to_numpy())[0]
+                newname = '%s\n' %(paper_methods[j]) + r'$\mathrm{\rho=%0.3f}$' %(r)
+                this_df = this_df.replace(paper_methods[j], newname)
+                this_palette[newname] = palette[paper_methods[j]]
+
+            this_df = this_df.astype({'Method': 'category'})
+            g = sns.jointplot(data=this_df, x='AUC', y='Normalized EF1%', hue='Method', palette=this_palette, 
+                              s=28, alpha=0.7)
+            g.set_axis_labels(xlabel='AUC')
+            g.ax_joint.set_ylabel('Normalized EF1%')
+            g.ax_joint.set_ylim((-0.1,0.5))
+            g.ax_joint.set_xlim((0,1.0))
+            SeabornFig2Grid(g, fig, gs[i//2])
+        gs.tight_layout(fig)
+        gs.update(bottom=0.03, left=0.04)
+    else:
+        total_plots = nmethods
+        grid_width = int(math.ceil(math.sqrt(total_plots)))
+        grid_length = int(math.ceil(float(total_plots)/grid_width))
+        gs = gridspec.GridSpec(grid_length, grid_width)
+        fig = plt.figure(figsize=(15,15))
+        for i in range(0,total_plots):
+            this_df = metric_df.loc[(metric_df['Rank']==1) & (metric_df['Method'] == methods[i])]
+            g = sns.jointplot(data=this_df, x='AUC', y='Normalized EF1%', hue='Method', palette=palette)
+            g.set_axis_labels(xlabel='AUC')
+            g.ax_joint.set_ylabel('Normalized EF1%')
+            g.ax_joint.set_ylim((-0.1,0.5))
+            g.ax_joint.set_xlim((0,1.0))
+            SeabornFig2Grid(g, fig, gs[i])
+    plt.savefig(args.outprefix+'%s_jointplot.pdf' %(outname), bbox_inches='tight')
