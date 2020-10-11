@@ -386,8 +386,15 @@ paper_methods = ['Vina', 'Vinardo', 'Dense\n(Pose)', 'Dense\n(Affinity)',
 
 # generate average performance at rank barplot
 mean_summary = overall_summary.groupby(['Method', 'Rank'], as_index=False)['Prediction'].mean()
+these_methods = [mt for mt in methods if not 'Best' in mt]
+for vname in ['Vina', 'Vinardo']:
+    newname = '%s\n' %vname
+    mean_summary = mean_summary.replace(vname, newname)
+    palette[newname] = palette[vname]
+    these_methods[these_methods.index(vname)] = newname
+
 fig,ax = plt.subplots(figsize=(13,13))
-sns.barplot(x='Rank', y='Prediction', data=mean_summary.loc[mean_summary['Method'].isin(methods)], 
+sns.barplot(x='Rank', y='Prediction', data=mean_summary.loc[mean_summary['Method'].isin(these_methods)], 
             ax=ax, hue='Method', palette=palette)
 seen_methods = mean_summary['Method'].unique().tolist()
 best_methods = [mt for mt in seen_methods if 'Best' in mt]
