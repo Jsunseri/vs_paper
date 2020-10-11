@@ -50,6 +50,6 @@ hatch.linewidth: 1.0
 # below are some options I'm not using but want to keep around just in case
 # pgf.texsystem: lualatex
 # mpl.rcParams['pdf.fonttype'] = 42 # a Type 3 font will be used by default
-# this package is apparently already loaded by matplotlib without the same options, 
+# this package is apparently already loaded by matplotlib with different options, 
 # so this preamble load fails. 
 # text.latex: preamble=r'\usepackage[utf8x]{inputenc}'
