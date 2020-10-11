@@ -118,11 +118,13 @@ for i,method in enumerate(methods):
     grouped_df = df.groupby(['Target', 'Compound'])
     df[best] = grouped_df.RMSD.cummin()
     df['Rank'] = grouped_df[method].rank(method="dense", ascending=False, axis=1)
+  
     # check the size of each group, and if it's smaller than the max rank we're going to
     # compute statistics for (currently 5) pad its rank out to that value by duplicating the 
     # cumulative min RMSD
-    sizes = grouped_df.size().reset_index(name='count')
-    too_small = sizes.loc[sizes['count'] < 5]
+    if i == 0:
+        sizes = grouped_df.size().reset_index(name='count')
+        too_small = sizes.loc[sizes['count'] < 5]
     for data in too_small.itertuples():
         last_rank = data.count
         for rank in [1,3,5]:
@@ -378,13 +380,33 @@ for rank in [1,3,5]:
         ax.set(ylim=(-0.1,1.1))
         symbol_fig.savefig(args.outprefix+'rank%d_rmsd_boxplot.pdf' %rank, bbox_inches='tight')
 
-# generate average performance at rank barplot
-mean_summary = overall_summary.groupby(['Method', 'Rank'], as_index=False)['Prediction'].mean()
-
-# generate VS metric vs pose metric jointplots
 paper_methods = ['Vina', 'Vinardo', 'Dense\n(Pose)', 'Dense\n(Affinity)', 
 		 'Cross-Docked\n(Pose)', 'Cross-Docked\n(Affinity)',
  		 'General\n(Pose)', 'General\n(Affinity)']
+
+# generate average performance at rank barplot
+mean_summary = overall_summary.groupby(['Method', 'Rank'], as_index=False)['Prediction'].mean()
+fig,ax = plt.subplots(figsize=(13,13))
+sns.barplot(x='Rank', y='Prediction', data=mean_summary.loc[mean_summary['Method'].isin(methods)], 
+            ax=ax, hue='Method', palette=palette)
+seen_methods = mean_summary['Method'].unique().tolist()
+best_methods = [mt for mt in seen_methods if 'Best' in mt]
+xlims = ax.get_xlim()
+for b_mt in best_methods:
+    realm = 'Vinardo' if 'Vinardo' in b_mt else 'Vina'
+    best_frac = mean_summary.loc[(mean_summary['Method'] == b_mt) & 
+                                 (mean_summary['Rank'] == 5)]['Prediction'].tolist()[0]
+    ax.plot(ax.get_xlim(), [best_frac, best_frac], color=palette[b_mt])
+    ax.annotate(realm, (xlims[0]+.05, best_frac+.01), size=16)
+ax.set_ylim([0, 1.0])
+ax.set_xlim(xlims)
+ax.set_ylabel('Average Fraction of Compounds with Pose %s %s %s RMSD' %(lt_symbol, args.threshold, angstrom_symbol))
+handles, labels = ax.get_legend_handles_labels()
+ax.legend(handles=handles, labels=labels, bbox_to_anchor=(0.85, 1), # bbox y=1.12 gets it nicely above plot
+        frameon=True, ncol=4)
+fig.savefig("rmsd_topn_percent.pdf", bbox_inches="tight")
+
+# generate VS metric vs pose metric jointplots
 metrics = {}
 if args.auc: 
     metrics['AUC'] = args.auc
