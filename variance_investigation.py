@@ -181,7 +181,7 @@ if args.rank:
                         (plot_num // grid_width, plot_num % grid_width),
                                         fig=fig)
                 stdev = mname.replace('mean','std')
-                sub_ax.hexbin(sub_df['deviation'], sub_df[stdev], 
+                sub_ax.hexbin(sub_df['deviation'], sub_df[stdev], mincnt=1, 
                         color=paper_palettes[mname])
                 r, _ = spearmanr(sub_df[mname].values, sub_df[stdev].values)
                 sub_ax.annotate(r'$\rho = {0:.2}$'.format(r), xy=(.1, .9),
