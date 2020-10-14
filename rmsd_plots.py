@@ -404,12 +404,12 @@ for b_mt in best_methods:
     best_frac = mean_summary.loc[(mean_summary['Method'] == b_mt) & 
                                  (mean_summary['Rank'] == 5)]['Prediction'].tolist()[0]
     ax.plot(ax.get_xlim(), [best_frac, best_frac], color=palette[b_mt])
-    ax.annotate(realm, (xlims[0]+.05, best_frac+.01), size=16)
+    ax.annotate(realm, (xlims[0]+.05, best_frac+.01), size=24)
 ax.set_ylim([0, 1.0])
 ax.set_xlim(xlims)
 ax.set_ylabel('Average Fraction of Compounds with Pose %s %s %s RMSD' %(lt_symbol, args.threshold, angstrom_symbol))
 handles, labels = ax.get_legend_handles_labels()
-ax.legend(handles=handles, labels=labels, bbox_to_anchor=(0.85, 1), # bbox y=1.12 gets it nicely above plot
+ax.legend(handles=handles, labels=labels, bbox_to_anchor=(1.007, 1), # bbox y=1.12 gets it nicely above plot
         frameon=True, ncol=4)
 fig.savefig("rmsd_topn_percent.pdf", bbox_inches="tight")
 
@@ -457,14 +457,15 @@ for metric,pairs in metrics.items():
                 # get correlation
                 for j in [i,i+1]:
                     sub_df = this_df.loc[this_df['Method'] == paper_methods[j]]
-                    r,_ = spearmanr(sub_df['Prediction'].to_numpy(), sub_df[metric].to_numpy())
-                    newname = '%s\n' %(paper_methods[j]) + r'$\mathrm{\rho=%0.3f}$' %(r)
+                    r,p = spearmanr(sub_df['Prediction'].to_numpy(), sub_df[metric].to_numpy())
+                    newname = '%s\n' %(paper_methods[j]) + r'$\mathrm{\rho=%0.3f,}$' %(r) + '\n' + \
+                              r'$\mathrm{p=%0.3f}$' %(p)
                     this_df = this_df.replace(paper_methods[j], newname)
                     this_palette[newname] = palette[paper_methods[j]]
 
                 this_df = this_df.astype({'Method': 'category'})
                 g = sns.jointplot(data=this_df, x='Prediction', y=metric, hue='Method', palette=this_palette, 
-                                  s=28, alpha=0.7)
+                                  s=100, alpha=0.6)
                 g.set_axis_labels(xlabel='Fraction of Low RMSD Compounds at Rank %d' %rank)
                 g.ax_joint.set_ylabel(metric)
                 if metric == 'AUC':
@@ -473,7 +474,7 @@ for metric,pairs in metrics.items():
                     g.ax_joint.set_ylim((-0.1,0.5))
                 SeabornFig2Grid(g, fig, gs[i//2])
             gs.tight_layout(fig)
-            gs.update(bottom=0.03, left=0.04)
+            gs.update(bottom=0.04, left=0.055)
         else:
             total_plots = nmethods
             grid_width = int(math.ceil(math.sqrt(total_plots)))

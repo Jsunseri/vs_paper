@@ -1185,7 +1185,7 @@ if __name__=='__main__':
                 print("{} mean accuracy: {:0.5f}".format(methodname, outm.score(featurize_output.features, labels)))
                 if args.dump:
                     print('Dumping fit model for later\n')
-                    joblib.dump(outm, '%s_%s.joblib' %(args.outprefix, methodname))
+                    joblib.dump(outm, '%s%s.joblib' %(args.outprefix, methodname))
         else:
             for model in regressors:
                 methodname = methodnames[model]
@@ -1203,7 +1203,7 @@ if __name__=='__main__':
                 print("{} R^2: {:0.5f}".format(methodname, outm.score(featurize_output.features, labels)))
                 if args.dump:
                     print('Dumping fit model for later\n')
-                    joblib.dump(outm, '%s_%s.joblib' %(args.outprefix, methodname))
+                    joblib.dump(outm, '%s%s.joblib' %(args.outprefix, methodname))
     elif args.fit_all:
         fit_all_models(featurize_output.features, labels, paramdict, fold_it, args.ncpus, args.seed, classifier)
     else:
@@ -1234,7 +1234,7 @@ if __name__=='__main__':
                 print('Plotting hyperparameter search results\n')
                 for gp2 in params[1:]:
                     plot_cv_results(gridsearch_out.cv_results_, (gp1,param_grid[gp1]), (gp2,param_grid[gp2]), classifier, 
-                                    '%s_%s_%s_%s_gridsearch_results.pdf' %(args.outprefix,methodname,gp1,gp2))
+                                    '%s%s_%s_%s_gridsearch_results.pdf' %(args.outprefix,methodname,gp1,gp2))
         else:
             for model in regressors:
                 methodname = methodnames[model]
@@ -1259,7 +1259,7 @@ if __name__=='__main__':
                 print('Plotting hyperparameter search results\n')
                 for gp2 in params[1:]:
                     plot_cv_results(gridsearch_out.cv_results_, (gp1,param_grid[gp1]), (gp2,param_grid[gp2]), classifier, 
-                                    '%s_%s_%s_%s_gridsearch_results.pdf' %(args.outprefix,methodname,gp1,gp2))
+                                    '%s%s_%s_%s_gridsearch_results.pdf' %(args.outprefix,methodname,gp1,gp2))
 
         if args.dump:
             if not args.outprefix:

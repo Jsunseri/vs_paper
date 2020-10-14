@@ -36,10 +36,10 @@ lines.solid_capstyle: round
 font.size: 28
 axes.titlesize: 26
 axes.labelsize: 26
-xtick.labelsize: 18
-ytick.labelsize: 24
-legend.fontsize: 18
-legend.title_fontsize: 18
+xtick.labelsize: 26
+ytick.labelsize: 26
+legend.fontsize: 22
+legend.title_fontsize: 24
 figure.titlesize: 24
 hatch.color: white # this setting is currently broken due to a bug...
 hatch.linewidth: 1.0

@@ -83,6 +83,8 @@ paper_palettes['crossdock_default2018_consensus'] = '#f0c4a7'
 paper_palettes['general_default2018-CNNscore-mean'] = '#B404F3'
 paper_palettes['general_default2018-CNNaffinity-mean'] = '#2A11A0'
 paper_palettes['general_default2018_consensus'] = '#e1d2e9'
+paper_palettes['refinedset2018-CNNscore-mean'] = '#2fff00'
+paper_palettes['refinedset2018-CNNaffinity-mean'] = '#9acd32'
 paper_palettes['rf-score-vs'] = '#7ACFE5'
 paper_palettes['rf-score-4'] = '#024B78'
 paper_palettes['DUD-E\ndescriptors,\nGeneral Set fit,\n'] = '#D4AD00'
@@ -129,6 +131,9 @@ name_map = {'dense-CNNscore-mean': 'Dense\n(Pose)', 'dense-CNNaffinity-mean': 'D
         'general_default2018-CNNaffinity-mean': 'General\n(Affinity)', 
         'general_default2018-CNNscore_CNNaffinity-poselevel_product':
         'General\nPose %s Affinity' %'$\u00D7$',
+
+        'refinedset2018-CNNscore-mean': 'Refined\n(Pose)',
+        'refinedset2018-CNNaffinity-mean': 'Refined\n(Affinity)',
 
         'rfscore-vs': 'RFScore-VS',
         'rf-score-4': 'RFScore-4',
