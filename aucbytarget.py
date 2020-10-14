@@ -207,7 +207,7 @@ def mean_auc(data, methods, targets, noskill, sims, args):
         fig.savefig(args.outprefix+'_%s.pdf'%chosen_stat, bbox_inches='tight')
 
         #now do boxplots
-        auc_fig,auc_ax = plt.subplots(figsize=(12,10))
+        auc_fig,auc_ax = plt.subplots(figsize=(16,10))
         aps_fig,aps_ax = plt.subplots()
         if args.make_boxplot:
             palette = {}
@@ -249,7 +249,8 @@ def mean_auc(data, methods, targets, noskill, sims, args):
             else:
                 # ok actually for now do both if there are few targets
                 if len(targets) <= 20:
-                    symbol_fig,symbol_ax = plt.subplots(figsize=(12.8,9.6))
+                    figsize = (20,10)
+                    symbol_fig,symbol_ax = plt.subplots(figsize=figsize)
                     grouped = boxplot_df.groupby(['Method'], as_index=False)
                     medians = grouped['AUC'].median()
                     medians.sort_values(by='AUC', inplace=True)
@@ -265,26 +266,27 @@ def mean_auc(data, methods, targets, noskill, sims, args):
                     mew = 0.5
                     for marker_id,target in enumerate(targets):
                         marker = swarm_markers[marker_id]
-                        if marker in marker_sizes:
-                            size = marker_sizes[marker]
-                        else:
-                            size = 14
+                        # if marker in marker_sizes:
+                            # size = marker_sizes[marker]
+                        # else:
+                            # size = 14
+                        size = 27
                         markerdict[target] = (marker,size)
                         if success_info:
                             leghands.append(mlines.Line2D([], [], color='black',
                                 fillstyle='none', marker=marker, linestyle='None',
                                 mew=0.5, #linewidth=1, 
-                                markersize=size, label='%s (%s)' %(target,' '.join(litpcba_successes[target]))))
+                                markersize=22, label='%s (%s)' %(target,' '.join(litpcba_successes[target]))))
                         else:
                             leghands.append(mlines.Line2D([], [], color='black',
                                 fillstyle='none', marker=marker, linestyle='None',
                                 mew=0.5,
-                                markersize=size, label=target))
-                    _,dummyax = plt.subplots(figsize=(12.8,9.6))
+                                markersize=18, label=target))
+                    _,dummyax = plt.subplots(figsize=figsize)
                     plt.sca(dummyax)
                     g = sns.swarmplot(x='Method', y='AUC',
                             data=boxplot_df,
-                            dodge=True, size=27,
+                            dodge=True, size=32,
                             linewidth=mew,
                             alpha=0.7, 
                             palette=palette, 
@@ -330,13 +332,13 @@ def mean_auc(data, methods, targets, noskill, sims, args):
                     sns.boxplot(x='Method', y='AUC', data=boxplot_df,
                             color='white', ax=symbol_ax, order=order, 
                             showfliers=False, zorder=2)
-                    symbol_ax.legend(handles=leghands, bbox_to_anchor=(1.27, 1.015),
+                    symbol_ax.legend(handles=leghands, bbox_to_anchor=(1.23, 1.02),
                             frameon=True, loc='upper right')
                     # symbol_ax.legend(handles=leghands, loc='lower right', ncol=2, 
                             # frameon=True)
                     symbol_ax.set_ylabel('AUC')
                     symbol_ax.set_xlabel('')
-                    symbol_ax.set(ylim=(0,1.1))
+                    symbol_ax.set(ylim=(0,1.05))
                     symbol_xlims = symbol_ax.get_xlim()
                     symbol_ax.plot([symbol_xlims[0],symbol_xlims[1]],[0.5, 0.5], linestyle='--', color='gray',
                             zorder=1, alpha=0.5)

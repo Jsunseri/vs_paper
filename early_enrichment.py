@@ -182,43 +182,94 @@ if __name__ == '__main__':
             plotcol.append(normalized_name)
         for col in plotcol:
             if len(lmethods) > 5:
-                size = (18,10)
+                figsize = (18,10)
             else:
-                size = (12, 10)
-            fig,ax = plt.subplots(figsize=size)
+                figsize = (12, 10)
+            fig,ax = plt.subplots(figsize=figsize)
             grouped = allEFs.groupby(['Method'], as_index=False)
             medians = grouped[col].median()
             medians.sort_values(by=col, inplace=True)
             order = medians['Method'].tolist()
             if (col == normalized_name and args.normalized and not args.fix_axis and ntargets <= 20) or \
                 (col == EFname and ntargets <= 20):
+                statidx = {EFname: 6, normalized_name: 7}
                 leghands = []
+                markerdict = {}
+                mew = 0.5
+                size = 27
                 for marker_id,target in enumerate(targets):
-                    mew = 0.5
-                    size = 27
                     marker = swarm_markers[marker_id]
-                    sns.stripplot(x='Method', y=col,
-                            data=allEFs[allEFs['Target']==target],
-                            split=True, size=size,
-                            jitter = 0.25, 
-                            linewidth=mew,
-                            alpha=0.7, 
-                            palette=palette, marker=marker,
-                            ax=ax, order=order)
+                    markerdict[target] = marker
                     if success_info:
                         leghands.append(mlines.Line2D([], [], color='black',
                             fillstyle='none', marker=marker, linestyle='None',
                             mew=mew,
-                            markersize=size, label='%s (%s)' %(target,' '.join(litpcba_successes[target]))))
+                            markersize=22, label='%s (%s)' %(target,' '.join(litpcba_successes[target]))))
                     else:
                         leghands.append(mlines.Line2D([], [], color='black',
                             fillstyle='none', marker=marker, linestyle='None',
                             mew=mew,
-                            markersize=size, label=target))
+                            markersize=22, label=target))
+
+                # TODO: factor this out into vspaper_settings, i'm now
+                # using it for all the LIT-PCBA boxplots
+                _,dummyax = plt.subplots(figsize=figsize)
+                plt.sca(dummyax)
+                g = sns.swarmplot(x='Method', y=col, 
+                        data=allEFs, 
+                        dodge=True, size=18,
+                        linewidth=mew,
+                        alpha=0.7, 
+                        palette=palette, 
+                        edgecolors='none',
+                        order=order)
+                artists = g.get_children()
+                offsets = []
+                for a in artists:
+                    if type(a) is mpl.collections.PathCollection:
+                        offsets.append(a.get_offsets().tolist())
+                if not offsets:
+                    sys.exit('Cannot obtain offsets for scatterplot with unique per-target symbols')
+                assert len(order) == len(offsets), ('List of methods is '
+                'length %d but offsets is length %d' %(len(order),len(offsets)))
+                plt.sca(ax)
+                for mnum,points in enumerate(offsets):
+                    # each PathCollection will correspond to a method,
+                    # in the order specified by the "order" variable;
+                    # i thought 
+                    # the order within the collection corresponded to
+                    # the order the targets appear but that seems false so
+                    # i'm arduously looking it up instead
+                    m = order[mnum]
+                    t_order = allEFs.loc[allEFs['Method'] == m]['Target'].tolist()
+                    assert len(points) == len(t_order), ('%d points in PathCollection %d but DataFrame '
+                    'for method %s has %d points' %(len(points), mnum, m, len(t_order)))
+                    found_targets = []
+                    for point in points:
+                        stat = point[1]
+                        found = False
+                        for elem in allEFs.loc[allEFs['Method'] == m].itertuples():
+                            if round(elem[statidx[col]],4) == round(stat,4):
+                                t = elem.Target
+                                if t in found_targets:
+                                    continue
+                                else:
+                                    found_targets.append(t)
+                                found = True
+                                break
+                        if not found:
+                            sys.exit('Never found %s %f for method %s' %(col, stat, m))
+                        marker = markerdict[t]
+                        ax.plot(point[0], stat, ms=size,
+                                linestyle='None',
+                                mew=mew, alpha=0.7,
+                                mec='black',
+                                color=palette[m], marker=marker, zorder=3)
+
                 sns.boxplot(x='Method', y=col, data=allEFs,
                         color='white', ax=ax, order=order,
                         showfliers=False)
-                ax.legend(handles=leghands, bbox_to_anchor=(1.22, 1.025),
+                ax.legend(handles=leghands, bbox_to_anchor=(1.25, 1.02),
                         frameon=True, loc='upper right')
                 if col == EFname:
                     ax_xlims = ax.get_xlim()
@@ -245,10 +296,10 @@ if __name__ == '__main__':
             fig.savefig('%s%s_boxplot.pdf' %(args.outprefix, col.replace(' ', '_').replace('\\','')), bbox_inches='tight')
             
             if ntargets > 25:
-                size = (16, 30)
+                figsize = (16, 30)
             else:
-                size = (16, 16)
-            fig,ax = plt.subplots(figsize=size)
+                figsize = (16, 16)
+            fig,ax = plt.subplots(figsize=figsize)
             # sort by target with increasing median EFR%, then in the sorted grouped barplot we'll also sort by method 
             # within the target. this is all a pain in the butt, can it be done more efficiently?
             grouped = allEFs.groupby(['Target'], as_index=False)

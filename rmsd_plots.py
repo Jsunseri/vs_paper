@@ -353,7 +353,7 @@ for rank in [1,3,5]:
         angstrom_symbol = r'$\mathrm{%s}$' % '\u212B'
         symbol_ax.set_ylabel('Fraction of Compounds with Pose %s %s %s RMSD' %(lt_symbol, args.threshold, angstrom_symbol))
         symbol_ax.set_xlabel('')
-        symbol_ax.set_title('Best seen by rank %d' %rank)
+        symbol_ax.set_title('Best seen at rank %d' %rank)
         symbol_ax.set(ylim=(-0.1,1.1))
         symbol_ax.legend(handles=leghands, bbox_to_anchor=(1.15, 1.015),
                 frameon=True, loc='upper right')
@@ -376,7 +376,7 @@ for rank in [1,3,5]:
         angstrom_symbol = r'$\mathrm{%s}$' % '\u212B'
         ax.set_ylabel('Fraction of Compounds with Pose %s %s %s RMSD' %(lt_symbol, args.threshold, angstrom_symbol))
         ax.set_xlabel('')
-        ax.set_title('Best seen by rank %d' %rank)
+        ax.set_title('Best seen at rank %d' %rank)
         ax.set(ylim=(-0.1,1.1))
         symbol_fig.savefig(args.outprefix+'rank%d_rmsd_boxplot.pdf' %rank, bbox_inches='tight')
 

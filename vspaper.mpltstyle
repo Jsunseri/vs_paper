@@ -33,12 +33,12 @@ font.serif: cmr10
 font.cursive: cmr10
 grid.linestyle: -
 lines.solid_capstyle: round
-font.size: 24
-axes.titlesize: 22
-axes.labelsize: 20
-xtick.labelsize: 14
-ytick.labelsize: 18
-legend.fontsize: 14
+font.size: 28
+axes.titlesize: 26
+axes.labelsize: 26
+xtick.labelsize: 18
+ytick.labelsize: 24
+legend.fontsize: 18
 legend.title_fontsize: 18
 figure.titlesize: 24
 hatch.color: white # this setting is currently broken due to a bug...
