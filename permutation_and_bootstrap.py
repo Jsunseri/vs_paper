@@ -109,46 +109,49 @@ if __name__ == '__main__':
                 out = pool.apply_async(bootstrap, (dfs, target, iter_chunk))
                 result.append(out)
             result = np.hstack([out.get() for out in result])
-
         # compute CI using the empirical method
         low = 2 * test - np.percentile(result, 100 * (1 - args.alpha / 2.))
         high = 2 * test - np.percentile(result, 100 * (args.alpha / 2.))
         if low > high:
             low,high = high,low
     
-        # permutation test using the ranks of actives:
-        # - pool the data (i.e. the active ranks)
-        this_ef = EFs.loc[EFs['Target'] == target]
-        subset_size = this_ef['sizeR'].values[0]
-        total_actives = this_ef['NA'].values[0]
-        ranks = np.empty((total_actives*2))
-        for i,(method,df) in enumerate(dfs.items()):
-            this_df = df.loc[df['Target'] == target]
-            start = i * total_actives
-            end = i * total_actives + total_actives
-            ranks[start:end] = this_df.loc[this_df['Label'] == 1]['Rank'].to_numpy()
-        if args.ncpus <= 1:
-            result = permutation(ranks, niters, subset_size,
-                    total_actives, R)
+        if test == 0:
+            # the test will always pass
+            p = 1
         else:
-            iter_chunk = int(np.ceil(niters * 1.0 / args.ncpus))
-            result = []
-            for i in range(args.ncpus):
-                out = pool.apply_async(permutation, (ranks, iter_chunk,
-                    subset_size, total_actives, R))
-                result.append(out)
-            result = np.hstack([out.get() for out in result])
+            # permutation test using the ranks of actives:
+            # - pool the data (i.e. the active ranks)
+            this_ef = EFs.loc[EFs['Target'] == target]
+            subset_size = this_ef['sizeR'].values[0]
+            total_actives = this_ef['NA'].values[0]
+            ranks = np.empty((total_actives*2))
+            for i,(method,df) in enumerate(dfs.items()):
+                this_df = df.loc[df['Target'] == target]
+                start = i * total_actives
+                end = i * total_actives + total_actives
+                ranks[start:end] = this_df.loc[this_df['Label'] == 1]['Rank'].to_numpy()
+            if args.ncpus <= 1:
+                result = permutation(ranks, niters, subset_size,
+                        total_actives, R)
+            else:
+                iter_chunk = int(np.ceil(niters * 1.0 / args.ncpus))
+                result = []
+                for i in range(args.ncpus):
+                    out = pool.apply_async(permutation, (ranks, iter_chunk,
+                        subset_size, total_actives, R))
+                    result.append(out)
+                result = np.hstack([out.get() for out in result])
 
-        # - the p-value is the observed frequency of differences where
-        #   diff_{permutation} >= diff_{test}
-        p = (
-            len(result[np.where(result >= math.fabs(test))]) +
-            len(result[np.where(result <= -math.fabs(test))])
-        ) / len(result)
+                # - the p-value is the observed frequency of differences where
+                #   diff_{permutation} >= diff_{test}
+                p = (
+                    len(result[np.where(result >= math.fabs(test))]) +
+                    len(result[np.where(result <= -math.fabs(test))])
+                ) / len(result)
         out_data[target] = OutStats(low,high,p)
   
     if pool:
         pool.close()
-    with open('%spvalue_and_ci.csv' %outprefix, 'w') as f:
-        for target,data in out_data:
-            f.write('%s %0.3f %0.3f %0.3f\n' %(target,data.low, data.high, data.p))
+    with open('%spvalue_and_ci.csv' %args.outprefix, 'w') as f:
+        for target,data in out_data.items():
+            f.write('%s %0.3f %0.3f %0.3f %0.3f\n' %(target,test,data.low, data.high, data.p))
