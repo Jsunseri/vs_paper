@@ -24,6 +24,34 @@ from vspaper_settings import paper_palettes, backup_palette, name_map, reverse_m
 # 
 # optionally calculate normalized EF := {# actives in subset} / min{# total actives, # total compounds x R}
 
+def getEF(df, R=.01):
+    pctg = int(R * 100)
+    EFname = 'EF{}%'.format(pctg) # if you set usetex=True you probably have to escape this percent symbol
+    # for each target, compute # actives in subset
+    grouped = df.groupby(['Target'], as_index=False)
+    actives = grouped.agg({'Label': 'sum'})
+    actives.rename(columns={'Label': 'NA'}, inplace=True)
+    ncompounds = grouped.size().to_frame('sizeR').reset_index()
+    ncompounds['sizeR'] = ncompounds['sizeR'] * R
+    ncompounds['sizeR'] = ncompounds['sizeR'].map(math.ceil)
+    actives = actives.merge(ncompounds, on='Target')
+    actives['min'] = actives.min(numeric_only=True, axis=1)
+    # len(x) is the total number of compounds in the group, we want the top 1%
+    # of predictions in each group and then we want to see how many of those
+    # are actives (which is equal to the sum of the labels)
+    topn = grouped.apply(lambda x: x.nlargest(math.ceil(len(x) * R), 'Prediction'))
+    # we still have a Target column, so drop the redundant index
+    topn.reset_index(inplace=True, drop=True)
+    topn_grouped = topn.groupby(['Target'], as_index=False)
+    enrich_actives = topn_grouped.agg({'Label': 'sum'})
+    enrich_actives.rename(columns={'Label': 'na'}, inplace=True)
+    
+    EFR = actives.merge(enrich_actives, on='Target')
+    EFR[EFname] = EFR['na'] / (EFR['NA'] * R)
+    normalized_name = 'Normalized EF{}\%'.format(pctg)
+    EFR[normalized_name] = EFR['na'] / EFR['min']
+    return EFR
+
 def sortedgroupedbar(ax, x,y, groupby, data=None, width=0.7, palette=None, **kwargs):
     order = np.zeros(len(data))
     df = data.copy()
@@ -63,8 +91,6 @@ def sortedgroupedbar(ax, x,y, groupby, data=None, width=0.7, palette=None, **kwa
     ax.plot([ax_xlims[0],ax_xlims[1]],[2, 2], linestyle='--', color='gray', lw=5,
                         zorder=1, alpha=0.5)
 
-core_methods = ['Dense\n(Affinity)', 'Cross-Docked\n(Affinity)', 'General\n(Affinity)', 
-                'RFScore-VS', 'RFScore-4', 'Vina', 'Vinardo']
 if __name__ == '__main__':
     parser = ArgumentParser(description='Compute early enrichment and/or '
             'normalized enrichment from prediction summary files')
@@ -88,6 +114,8 @@ if __name__ == '__main__':
             help='Prefix for output filenames')
     args = parser.parse_args()
 
+    core_methods = ['Dense\n(Affinity)', 'Cross-Docked\n(Affinity)', 'General\n(Affinity)', 
+                    'RFScore-VS', 'RFScore-4', 'Vina', 'Vinardo']
     # preds are LABELS PREDICTIONS TARGET TITLE METHOD 
     cols = ['Label', 'Prediction', 'Target', 'Title', 'Method']
     altcols = ['Label', 'Prediction', 'Target', 'Method']
@@ -110,31 +138,11 @@ if __name__ == '__main__':
             nmethods = methods.shape[0]
             assert nmethods == 1, '%s contains data from %d methods' %(fname, nmethods)
             method = methods[0]
-            # for each target, compute # actives in subset
-            grouped = df.groupby(['Target'], as_index=False)
-            actives = grouped.agg({'Label': 'sum'})
-            actives.rename(columns={'Label': 'NA'}, inplace=True)
-            ncompounds = grouped.size().to_frame('sizeR').reset_index()
-            ncompounds['sizeR'] = ncompounds['sizeR'] * R
-            ncompounds['sizeR'] = ncompounds['sizeR'].map(math.ceil)
-            actives = actives.merge(ncompounds, on='Target')
-            actives['min'] = actives.min(numeric_only=True, axis=1)
-            # len(x) is the total number of compounds in the group, we want the top 1%
-            # of predictions in each group and then we want to see how many of those
-            # are actives (which is equal to the sum of the labels)
-            topn = grouped.apply(lambda x: x.nlargest(math.ceil(len(x) * R), 'Prediction'))
-            # we still have a Target column, so drop the redundant index
-            topn.reset_index(inplace=True, drop=True)
-            topn_grouped = topn.groupby(['Target'], as_index=False)
-            enrich_actives = topn_grouped.agg({'Label': 'sum'})
-            enrich_actives.rename(columns={'Label': 'na'}, inplace=True)
+            EFR = getEF(df, R)
 
-            EFR = actives.merge(enrich_actives, on='Target')
-            EFR[EFname] = EFR['na'] / (EFR['NA'] * R)
             normalized_name = ''
             if args.normalized:
                 normalized_name = 'Normalized EF{}\%'.format(pctg)
-                EFR[normalized_name] = EFR['na'] / EFR['min']
             if method in ['Vina', 'Vinardo', 'RFScore-VS', 'RFScore-4']:
                 EFR['Method'] = method
             elif method not in name_map:
