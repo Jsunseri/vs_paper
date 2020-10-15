@@ -7,7 +7,7 @@ import numpy as np
 from sklearn.utils import resample
 from early_enrichment import getEF
 
-OutStats = namedtuple('OutStats', ['low', 'high', 'p'])
+OutStats = namedtuple('OutStats', ['test', 'low', 'high', 'p'])
 
 def bootstrap(dfs, target, niters):
     boot_diffs = np.empty((niters))
@@ -143,15 +143,15 @@ if __name__ == '__main__':
                 result = np.hstack([out.get() for out in result])
 
                 # - the p-value is the observed frequency of differences where
-                #   diff_{permutation} >= diff_{test}
+                #   diff_{permutation} is more extreme than diff_{test}
                 p = (
                     len(result[np.where(result >= math.fabs(test))]) +
                     len(result[np.where(result <= -math.fabs(test))])
                 ) / len(result)
-        out_data[target] = OutStats(low,high,p)
+        out_data[target] = OutStats(test,low,high,p)
   
     if pool:
         pool.close()
     with open('%spvalue_and_ci.csv' %args.outprefix, 'w') as f:
         for target,data in out_data.items():
-            f.write('%s %0.3f %0.3f %0.3f %0.3f\n' %(target,test,data.low, data.high, data.p))
+            f.write('%s %0.3f %0.3f %0.3f %0.3f\n' %(target,data.test,data.low, data.high, data.p))
