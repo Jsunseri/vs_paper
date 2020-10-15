@@ -1,4 +1,5 @@
 #!/bin/env python
+import math,random
 from argparse import ArgumentParser
 import pandas as pd
 import numpy as np
@@ -28,15 +29,17 @@ if __name__ == '__main__':
     methods = []
     for i,summary in enumerate(args.summary):
         df = pd.read_csv(summary, header=None, names=cols, delim_whitespace=True)
+        df['Rank'] = df.groupby(['Target'])['Prediction'].rank(method='first', ascending=False)
         method = df['Method'].unique().tolist()[0]
         dfs[method] = df
         methods.append(method)
-        this_ef = getEF(df)[[EFname, Target]]
+
+        this_ef = getEF(df)[[EFname, 'Target', 'NA', 'sizeR']]
         this_ef.rename(columns={EFname: method}, inplace=True)
         try:
-            EFs = pd.merge(EFs, getEF(df), on=['Target'])
+            EFs = pd.merge(EFs, this_ef[[EFname, 'Target']], on=['Target'])
         except NameError:
-            EFs = getEF(df)
+            EFs = this_ef
     
     EFs['diff'] = EFs[methods[0]] - EFs[methods[1]]
     boot_diffs = []
@@ -72,17 +75,39 @@ if __name__ == '__main__':
         high = 2 * test - np.percentile(boot_diffs, 100 * (alpha / 2.))
         if low > high:
             low,high = high,low
-        out_data[target] = OutStats(low,high,np.nan)
     
         # permutation test using the ranks of actives:
-        # - compute difference in test statistics
         # - pool the data (i.e. the active ranks)
+        ranks = np.array()
+        permute_out = []
+
+        this_ef = EFs.loc[EFs['Target'] == target]
+        subset_size = this_ef['sizeR'].values[0]
+        total_actives = this_ef['NA'].values[0]
+        for method,df in dfs.items():
+            this_df = df.loc[df['Target'] == target]
+            ranks = ranks.concatenate(this_df.loc[this_df['Label'] == 1]['Rank'].to_numpy())
         #   repeat N_{B} times:
+        assert ranks.shape[0] % 2 == 0, 'ranks array has shape %d, which is unexpected' %ranks.shape[0]
+        n = ranks.shape[0] // 2
+        for i in range(niters):
         #   - randomly permute the pooled data
+            np.random.shuffle(ranks)
         #   - compute the sample statistic for the first n1 observations from the pool
         #     and the second n2 observations and record the difference
+            s1 = ranks[:n]
+            top_actives = (s1 < subset_size).sum()
+            ef1 = top_actives / (total_actives * R)
+            s2 = ranks[n:]
+            top_actives = (s2 < subset_size).sum()
+            ef2 = top_actives / (total_actives * R)
+            permute_out.append(ef1-ef2)
+
         # - the p-value is the observed frequency of differences where
         #   diff_{permutation} >= diff_{test}
+        permute_out = np.array(permute_out)
+        p = np.where(permute_out >= math.fabs(test)).sum() / permute_out.shape[0]
+        out_data[target] = OutStats(low,high,p)
     
     with open('%spvalue_and_ci.csv' %outprefix, 'w') as f:
         for target,data in out_data:
