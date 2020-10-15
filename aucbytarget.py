@@ -21,6 +21,10 @@ from vspaper_settings import (paper_palettes, backup_palette, name_map,
 			      reverse_map, swarm_markers, litpcba_successes, 
 			      litpcba_order, marker_sizes)
 
+# TODO: this script dates back to the _original_ protein-ligand scoring paper
+# so it's absolutely ancient and desperately needs a rewrite instead of
+# constant adding more stuff to it like a lumbering Frankenstein monster
+
 # In matplotlib < 1.5, plt.fill_between does not have a 'step'
 # argument
 step_kwargs = ({'step': 'post'}
