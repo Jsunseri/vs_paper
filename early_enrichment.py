@@ -27,6 +27,11 @@ from vspaper_settings import paper_palettes, backup_palette, name_map, reverse_m
 def getEF(df, R=.01):
     pctg = int(R * 100)
     EFname = 'EF{}%'.format(pctg) # if you set usetex=True you probably have to escape this percent symbol
+    # do this to deal with predictors that have many duplicate prediction values
+    # (e.g. they collapsed to predicting the mean) and
+    # files that have compounds pre-sorted, because 'sort' will
+    # preserve their order
+    df.sort_values(by='Label', inplace=True)
     # for each target, compute # actives in subset
     grouped = df.groupby(['Target'], as_index=False)
     actives = grouped.agg({'Label': 'sum'})
@@ -123,7 +128,7 @@ if __name__ == '__main__':
         pctg = int(R * 100)
         EFname = 'EF{}%'.format(pctg) # if you set usetex=True you probably have to escape this percent symbol
         for i,fname in enumerate(args.summaryfiles):
-            # some of the outputs don't have titles, so check real quick
+            # some of the outputs don't have moltitles, so check real quick
             with open(fname, 'r') as tmpf:
                 for line in tmpf:
                     contents = line.split()
@@ -165,14 +170,14 @@ if __name__ == '__main__':
                 out_method = method
             else:
                 out_method = reverse_map[method]
-            thismethod.to_csv('%s_%s_bytarget'%(out_method,EFname.replace('\\','')), sep='\t',
+            thismethod.to_csv('%s_%s_bytarget'%(out_method.replace('\n',''),EFname.replace('\\','')), sep='\t',
                     encoding='utf-8', index=False, header=False)
         
         palette = {}
         lmethods = list(methods)
         for method in lmethods:
             palette[method] = paper_palettes[method] if method in \
-                paper_palettes else backup_palette[lmethods.index(method)]
+                paper_palettes else backup_palette[lmethods.index(method) % len(backup_palette)]
 
         allEFs['Target'] = allEFs['Target'].replace('_', ' ', regex=True)
         targets = allEFs['Target'].unique()
@@ -257,7 +262,7 @@ if __name__ == '__main__':
                         stat = point[1]
                         found = False
                         for elem in allEFs.loc[allEFs['Method'] == m].itertuples():
-                            if round(elem[statidx[col]],4) == round(stat,4):
+                            if round(elem[statidx[col]],5) == round(stat,5):
                                 t = elem.Target
                                 if t in found_targets:
                                     continue

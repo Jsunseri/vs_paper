@@ -87,8 +87,17 @@ paper_palettes['refinedset2018-CNNscore-mean'] = '#2fff00'
 paper_palettes['refinedset2018-CNNaffinity-mean'] = '#9acd32'
 paper_palettes['rf-score-vs'] = '#7ACFE5'
 paper_palettes['rf-score-4'] = '#024B78'
-paper_palettes['DUD-E\ndescriptors,\nGeneral Set fit,\n'] = '#D4AD00'
-paper_palettes['MUV\ndescriptors,\nGeneral Set fit,\n'] = '#E7E000'
+paper_palettes['DUD-E\ndescriptors,\nGeneral Set fit,\n'] = '#ffd622'
+paper_palettes['MUV\ndescriptors,\nGeneral Set fit,\n'] = '#D4AD00'
+paper_palettes['ECFP4 fingerprints,\nGeneral Set fit,\n'] = '#E7E000'
+
+paper_palettes['DUD-E\ndescriptors,\nRefined Set fit,\n'] = '#ffd622'
+paper_palettes['MUV\ndescriptors,\nRefined Set fit,\n'] = '#D4AD00'
+paper_palettes['ECFP4 fingerprints,\nRefined Set fit,\n'] = '#E7E000'
+
+paper_palettes['DUD-E\ndescriptors,\nCross-Docked Set fit,\n'] = '#ffd622'
+paper_palettes['MUV\ndescriptors,\nCross-Docked Set fit,\n'] = '#D4AD00'
+paper_palettes['ECFP4 fingerprints,\nCross-Docked Set fit,\n'] = '#E7E000'
 
 paper_palettes['CNN'] = paper_palettes['CNN Scoring Rescore']
 paper_palettes['CNNscore'] = paper_palettes['CNN Scoring Rescore']
@@ -147,6 +156,9 @@ name_map = {'dense-CNNscore-mean': 'Dense\n(Pose)', 'dense-CNNaffinity-mean': 'D
 
         'RF-Refined-DUDe': 'RF Refined\n(DUD-E features)',
         'RF-Refined-MUV': 'RF Refined\n(MUV features)', 
+        'fponly_refined': 'ECFP4 fingerprints,\nRefined Set fit,\n',
+        'fponly_general': 'ECFP4 fingerprints,\nGeneral Set fit,\n',
+        'fponly_cd': 'ECFP4 fingerprints,\nCross-Docked Set fit,\n',
 
         'Vina': 'Vina',
         'dense': 'Dense', 
@@ -215,10 +227,30 @@ for mname in simple_models:
     paper_palettes['MUV\ndescriptors,\nGeneral Set fit,\n%s' %mname] = \
                                 paper_palettes['MUV\ndescriptors,\nGeneral Set fit,\n']
 
+    paper_palettes['DUD-E\ndescriptors,\nRefined Set fit,\n%s' %mname] = \
+                                paper_palettes['DUD-E\ndescriptors,\nRefined Set fit,\n']
+    paper_palettes['MUV\ndescriptors,\nRefined Set fit,\n%s' %mname] = \
+                                paper_palettes['MUV\ndescriptors,\nRefined Set fit,\n']
+
+    paper_palettes['DUD-E\ndescriptors,\nCross-Docked Set fit,\n%s' %mname] = \
+                                paper_palettes['DUD-E\ndescriptors,\nCross-Docked Set fit,\n']
+    paper_palettes['MUV\ndescriptors,\nCross-Docked Set fit,\n%s' %mname] = \
+                                paper_palettes['MUV\ndescriptors,\nCross-Docked Set fit,\n']
+
     name_map['MUVdesc_general_%s' %mname] = 'MUV\ndescriptors,\nGeneral Set fit,\n%s' %mname
     reverse_map['MUV\ndescriptors,\nGeneral Set fit,\n%s' %mname] = 'MUVdesc_general_%s' %mname
     name_map['DUDEdesc_general_%s' %mname] = 'DUD-E\ndescriptors,\nGeneral Set fit,\n%s' %mname
     reverse_map['DUD-E\ndescriptors,\nGeneral Set fit,\n%s' %mname] = 'DUDEdesc_general_%s' %mname
+
+    name_map['MUVdesc_refined_%s' %mname] = 'MUV\ndescriptors,\nRefined Set fit,\n%s' %mname
+    reverse_map['MUV\ndescriptors,\nRefined Set fit,\n%s' %mname] = 'MUVdesc_refined_%s' %mname
+    name_map['DUDEdesc_refined_%s' %mname] = 'DUD-E\ndescriptors,\nRefined Set fit,\n%s' %mname
+    reverse_map['DUD-E\ndescriptors,\nRefined Set fit,\n%s' %mname] = 'DUDEdesc_refined_%s' %mname
+
+    name_map['MUVdesc_cd_%s' %mname] = 'MUV\ndescriptors,\nCross-Docked Set fit,\n%s' %mname
+    reverse_map['MUV\ndescriptors,\nCross-Docked Set fit,\n%s' %mname] = 'MUVdesc_cd_%s' %mname
+    name_map['DUDEdesc_cd_%s' %mname] = 'DUD-E\ndescriptors,\nCross-Docked Set fit,\n%s' %mname
+    reverse_map['DUD-E\ndescriptors,\nCross-Docked Set fit,\n%s' %mname] = 'DUDEdesc_cd_%s' %mname
 
     name_map['MUVdesc_LITPCBAfit_noCNN_%s' %mname] = 'MUV\ndescriptors,\nLIT-PCBA fit,\n%s' %mname
     reverse_map['MUV\ndescriptors,\nLIT-PCBA fit,\n%s' %mname] = 'MUVdesc_LITPCBAfit_noCNN_%s' %mname

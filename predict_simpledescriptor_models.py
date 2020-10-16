@@ -77,7 +77,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if args.extra_only:
-        assert args.extra_descriptors, ('Fitting exclusively to user-provided descriptors '
+        assert args.extra_descriptors, ('Predicting exclusively from user-provided descriptors '
         'was requested, but no user-provided descriptors were provided')
         if args.descriptor_file:
             print('Descriptor file was provided, but extra_only was passed so '

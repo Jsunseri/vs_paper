@@ -84,9 +84,9 @@ if __name__ == '__main__':
         for d in cnns:
             for stype in ['CNNscore', 'CNNaffinity']:
                 for stat in ['mean', 'median', 'max', 'min']:
-                    print('Writing out summary max file for %s-%s-%s' %(method,stype,stat))
+                    print('Writing out summary max file for %s-%s-%s' %(d,stype,stat))
                     output_max_summary(df, grouped, '%s-%s-%s' %(d, stype, stat))
-                    print('Writing out summary min file for %s-%s-%s' %(method,stype,stat))
+                    print('Writing out summary min file for %s-%s-%s' %(d,stype,stat))
                     output_min_summary(df, grouped, '%s-%s-%s' %(d, stype, stat))
     if args.csv:
         df = pd.DataFrame()
