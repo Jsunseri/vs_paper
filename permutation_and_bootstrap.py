@@ -61,7 +61,7 @@ if __name__ == '__main__':
     parser.add_argument('-s', '--summary', nargs=2, help='Summary files for the '
             'two methods to be compared, arranged [LABEL PREDICTION TARGET TITLE '
             'METHOD]')
-    parser.add_argument('-n', '--niters', type=int, default=1000, help='Number of '
+    parser.add_argument('-n', '--niters', type=int, default=10000, help='Number of '
             'bootstrap iterations to run')
     parser.add_argument('-nc', '--ncpus', type=int, default=1, help='Number of CPUs to '
             'run bootstrap sampling in parallel')
