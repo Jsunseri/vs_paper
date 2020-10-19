@@ -34,10 +34,10 @@ font.cursive: cmr10
 grid.linestyle: -
 lines.solid_capstyle: round
 font.size: 28
-axes.titlesize: 26
-axes.labelsize: 26
+axes.titlesize: 30
+axes.labelsize: 30
 xtick.labelsize: 26
-ytick.labelsize: 26
+ytick.labelsize: 18
 legend.fontsize: 22
 legend.title_fontsize: 24
 figure.titlesize: 24

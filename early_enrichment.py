@@ -230,7 +230,7 @@ if __name__ == '__main__':
                 plt.sca(dummyax)
                 g = sns.swarmplot(x='Method', y=col, 
                         data=allEFs, 
-                        dodge=True, size=18,
+                        dodge=True, size=22,
                         linewidth=mew,
                         alpha=0.7, 
                         palette=palette, 
@@ -261,6 +261,7 @@ if __name__ == '__main__':
                     for point in points:
                         stat = point[1]
                         found = False
+                        rejected_matches = []
                         for elem in allEFs.loc[allEFs['Method'] == m].itertuples():
                             if round(elem[statidx[col]],5) == round(stat,5):
                                 t = elem.Target
@@ -270,8 +271,12 @@ if __name__ == '__main__':
                                     found_targets.append(t)
                                 found = True
                                 break
+                            else:
+                                rejected_matches.append(str(round(elem[statidx[col]],5)))
                         if not found:
-                            sys.exit('Never found %s %f for method %s' %(col, stat, m))
+                            print('Found these targets: %s' %(' '.join(found_targets)))
+                            print('Rejected these matches: %s' %(' '.join(rejected_matches)))
+                            sys.exit('Never found %s %f (rounded to %f) for method %s' %(col, stat, round(stat,5), m))
                         marker = markerdict[t]
                         ax.plot(point[0], stat, ms=size,
                                 linestyle='None',
@@ -282,7 +287,8 @@ if __name__ == '__main__':
                 sns.boxplot(x='Method', y=col, data=allEFs,
                         color='white', ax=ax, order=order,
                         showfliers=False)
-                ax.legend(handles=leghands, bbox_to_anchor=(1.25, 1.02),
+                # ax.set_ylim((0,16)) # compare_simpledescs
+                ax.legend(handles=leghands, bbox_to_anchor=(1.3, 1.02),
                         frameon=True, loc='upper right')
                 if col == EFname:
                     ax_xlims = ax.get_xlim()

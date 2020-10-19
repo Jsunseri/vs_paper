@@ -63,6 +63,8 @@ def getLigs(reflist, include_inactive=False):
     # this is going to be special-cased and crappy
     activelist = [[],[]]
     decoylist = [[],[]]
+    if type(reflist) != list:
+        reflist = [reflist]
     for ref in reflist:
         dirname = os.path.dirname(ref)
         dirstr = os.path.basename(os.path.dirname(dirname))
@@ -136,7 +138,37 @@ def calcDist(refs, target):
                     continue
     return (target[0], simlist)
 
-def getAllLigs(targets, refs):
+def getOverallMaxLigandSim(train_actives, test_target_path):
+    test_actives,test_active_names = getLigs([test_target_path], False)[0]
+    sims = getMaxLigandSim(train_actives, test_actives)
+    return (sims, test_active_names)
+
+def getAllLigs(refs):
+    '''
+    get all training ligs
+    '''
+    # if we're dealing with Pocketome structures, we only need one example from
+    # each pocket because that will pull in all the ligs
+    reflist = []
+    found = {}
+    for ref in refs:
+        if os.path.basename(os.path.dirname(os.path.dirname(ref))) == 'PocketomeGenCross_Output':
+            # alert the user the first time
+            if not found:
+                print('identifying pocket membership for training targets...')
+            pocket = os.path.basename(os.path.dirname(ref))
+            if pocket not in found:
+                found[pocket] = ref
+        else:
+            reflist.append(ref)
+    reflist += found.values()
+    print('calculating training ligand fingerprints...')
+    # can't pass to multiprocessing pool even though i want to because
+    # OpenBabel PySwigObjects aren't picklable...
+    outlist = getLigs(reflist)[0][0]
+    return outlist
+
+def getAllRelevantLigs(targets, refs):
     '''
     for each target in targets, get the ligands associated with all proteins 
     in ref that have >0.5 sequence identity (for cross-docked this includes
@@ -200,47 +232,72 @@ if __name__ == '__main__':
             'ligands associated with them to compute similarity between two datasets')
     parser.add_argument('-t','--testfile',type=str,help="input file with paths to proteins for testing")
     parser.add_argument('-r','--reffile',type=str,help="file with paths to reference proteins for distance calculation")
+    parser.add_argument('-l', '--ligand_only', action='store_true',
+            help='Compute nearest neighbor to ligand in the training set, '
+            'regardless of the protein it was seen with')
     args = parser.parse_args()
 
-    print('reading pdbs...')
-    # readPDBfiles returns list of (path_to_target_file, target_seqs) tuples
-    testset = readPDBfiles(args.testfile)
     testbase = os.path.splitext(os.path.basename(args.testfile))[0]
-    refset = readPDBfiles(args.reffile)
     refbase = os.path.splitext(os.path.basename(args.reffile))[0]
+    if not args.ligand_only:
+        print('reading pdbs...')
+        # readPDBfiles returns list of (path_to_target_file, target_seqs) tuples
+        testset = readPDBfiles(args.testfile)
+        refset = readPDBfiles(args.reffile)
 
-    # find all ligs in the train set associated with targets that are less
-    # than 0.5 away from the test set protein, this returns a dict 
-    # that maps path_to_test_target to 
-    # (list_of_relevant_train_lig_fps, list_of_relevant_train_lig_names)
-    protein_train_lig_list = getAllLigs(testset, refset)
-
-    outprefix = '%s_to_%s' %(testbase, refbase)
+        # find all ligs in the train set associated with targets that are less
+        # than 0.5 away from the test set protein, this returns a dict 
+        # that maps path_to_test_target to 
+        # (list_of_relevant_train_lig_fps, list_of_relevant_train_lig_names)
+        protein_train_lig_list = getAllRelevantLigs(testset, refset)
+        outprefix = '%s_to_%s' %(testbase, refbase)
     
-    # build up the ligand list (including inactives if applicable) for the
-    # test protein
-    # then find the max similarity to the training set ligands for each ligand in the
-    # test set for this protein - do this for actives AND inactives, but keep the
-    # results separate
-    print('calculating test ligand fingerprints')
-    numtests = len(testset)
-    with open("%s_combined_sims.csv" %(outprefix), "w") as f:
-        f.write("Target Active_Mean Active_Median Inactive_Mean Inactive_Median\n")
-        for testnum,test in enumerate(testset):
-            path = test[0]
-            target_name = os.path.basename(os.path.dirname(path))
-            print('target %d/%d' %(testnum+1,numtests))
-            # returns tup(([active_fps],[active_names]), ([decoy_fps],[decoy_names]))
-            activelist, decoylist = getLigs([path], True)
-            active_sims = getMaxLigandSim(protein_train_lig_list[path][0],activelist[0])
-            decoy_sims = getMaxLigandSim(protein_train_lig_list[path][0],decoylist[0])
-            # dump out the means and medians per target for this dataset, to be used for
-            # plotting with other datasets, format like 
-            # TEST_TARGET ACTIVE_MEAN ACTIVE_MEDIAN INACTIVE_MEAN INACTIVE_MEDIAN
-            # also dump out the max similarity per ligand into a separate file
-            f.write('%s %0.3f %0.3f %0.3f %0.3f\n' %(target_name,
-                mean(active_sims), median(active_sims), mean(decoy_sims),
-                median(decoy_sims)))
-            with open('%s_%s_active_maxsim.csv' %(target_name,outprefix), 'w') as g:
-                for sim,name in zip(active_sims, activelist[1]):
-                    g.write('%s %0.3f\n' %(name,sim))
+        # build up the ligand list (including inactives if applicable) for the
+        # test protein
+        # then find the max similarity to the training set ligands for each ligand in the
+        # test set for this protein - do this for actives AND inactives, but keep the
+        # results separate
+        print('calculating test ligand fingerprints')
+        numtests = len(testset)
+        with open("%s_combined_sims.csv" %(outprefix), "w") as f:
+            f.write("Target Active_Mean Active_Median Inactive_Mean Inactive_Median\n")
+            for testnum,test in enumerate(testset):
+                path = test[0]
+                target_name = os.path.basename(os.path.dirname(path))
+                print('target %d/%d' %(testnum+1,numtests))
+                # returns tup(([active_fps],[active_names]), ([decoy_fps],[decoy_names]))
+                activelist, decoylist = getLigs([path], True)
+                active_sims = getMaxLigandSim(protein_train_lig_list[path][0],activelist[0])
+                decoy_sims = getMaxLigandSim(protein_train_lig_list[path][0],decoylist[0])
+                # dump out the means and medians per target for this dataset, to be used for
+                # plotting with other datasets, format like 
+                # TEST_TARGET ACTIVE_MEAN ACTIVE_MEDIAN INACTIVE_MEAN INACTIVE_MEDIAN
+                # also dump out the max similarity per ligand into a separate file
+                f.write('%s %0.3f %0.3f %0.3f %0.3f\n' %(target_name,
+                    mean(active_sims), median(active_sims), mean(decoy_sims),
+                    median(decoy_sims)))
+                with open('%s_%s_active_maxsim.csv' %(target_name,outprefix), 'w') as g:
+                    for sim,name in zip(active_sims, activelist[1]):
+                        g.write('%s %0.3f\n' %(name,sim))
+    else:
+        with open(args.testfile, 'r') as f:
+            pdblines = set(f.readlines())
+            testset = [pdb.strip() for pdb in pdblines]
+        with open(args.reffile, 'r') as f:
+            pdblines = set(f.readlines())
+            refset = [pdb.strip() for pdb in pdblines]
+        train_lig_list = getAllLigs(refset)
+        outprefix = 'ligonly_%s_to_%s' %(testbase, refbase)
+
+        print('calculating test ligand fingerprints')
+        numtests = len(testset)
+        with open("%s_combined_sims.csv" %(outprefix), "w") as f:
+            f.write("Target Active_Mean Active_Median\n")
+            for testnum,test in enumerate(testset):
+                print('target %d/%d' %(testnum+1,numtests))
+                target_name = os.path.basename(os.path.dirname(test))
+                sims,names = getOverallMaxLigandSim(train_lig_list, test)
+                f.write('%s %0.3f %0.3f\n' %(target_name, mean(sims), median(sims)))
+                with open('%s_%s_active_maxsim.csv' %(target_name,outprefix), 'w') as g:
+                    for sim,name in zip(sims, names):
+                        g.write('%s %0.3f\n' %(name,sim))

@@ -40,6 +40,9 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--csv', nargs='*', help='CSVs with data to '
             'summarize; if provided, these should all be associated with the '
             'same method')
+    parser.add_argument('-j', '--justseeds', action='store_true', help='Do not '
+            'calculate CNN ensemble values, just dump summary files for the '
+            'individual seeds')
     args = parser.parse_args()
     exclude = ['Rank', 'Title', 'MW', 'Target', 'File']
     methods = ['Vina', 'RFScore-4', 'RFScore-VS']
@@ -52,42 +55,52 @@ if __name__ == '__main__':
         # assume ensemble columns (those with 'seed' in the name) should be
         # used together to generate predictions
         cnns = set([name.split('_seed')[0] for name in cols if 'CNNscore' in name])
-        for d in cnns:
-            for stype in ['CNNscore', 'CNNaffinity']:
-                snames = ['%s_seed%d_%s' %(d, seed, stype) for seed in list(range(5))]
-                print('Computing ensemble mean for %s-%s' %(d,stype))
-                df[d + '-' + stype + '-mean'] = df[snames].mean(axis=1)
+        if not args.justseeds:
+            for d in cnns:
+                for stype in ['CNNscore', 'CNNaffinity']:
+                    snames = ['%s_seed%d_%s' %(d, seed, stype) for seed in list(range(5))]
+                    print('Computing ensemble mean for %s-%s' %(d,stype))
+                    df[d + '-' + stype + '-mean'] = df[snames].mean(axis=1)
 
-                print('Computing ensemble median for %s-%s' %(d,stype))
-                df[d + '-' + stype + '-median'] = df[snames].median(axis=1)
+                    print('Computing ensemble median for %s-%s' %(d,stype))
+                    df[d + '-' + stype + '-median'] = df[snames].median(axis=1)
 
-                print('Computing ensemble max for %s-%s' %(d,stype))
-                df[d + '-' + stype + '-max'] = df[snames].max(axis=1)
+                    print('Computing ensemble max for %s-%s' %(d,stype))
+                    df[d + '-' + stype + '-max'] = df[snames].max(axis=1)
 
-                print('Computing ensemble min for %s-%s' %(d,stype))
-                df[d + '-' + stype + '-min'] = df[snames].min(axis=1)
+                    print('Computing ensemble min for %s-%s' %(d,stype))
+                    df[d + '-' + stype + '-min'] = df[snames].min(axis=1)
     
         grouped = df.groupby(['Target','Title'], as_index=False)
-        for method in methods:
-            print('Writing out summary max file for %s' %method)
-            ov = df.loc[grouped[method].idxmax()]
-            ov['method'] = method
-            ov.to_csv(path_or_buf='%s-max.summary' %method, sep=' ', header=False, index=False,
-                    columns=['label', method, 'Target', 'Title', 'method'])
+        if not args.justseeds:
+            for method in methods:
+                print('Writing out summary max file for %s' %method)
+                ov = df.loc[grouped[method].idxmax()]
+                ov['method'] = method
+                ov.to_csv(path_or_buf='%s-max.summary' %method, sep=' ', header=False, index=False,
+                        columns=['label', method, 'Target', 'Title', 'method'])
 
-            print('Writing out summary min file for %s' %method)
-            ov = df.loc[grouped[method].idxmin()]
-            ov['method'] = method
-            ov.to_csv(path_or_buf='%s-min.summary' %method, sep=' ', header=False, index=False,
-                    columns=['label', method, 'Target', 'Title', 'method'])
+                print('Writing out summary min file for %s' %method)
+                ov = df.loc[grouped[method].idxmin()]
+                ov['method'] = method
+                ov.to_csv(path_or_buf='%s-min.summary' %method, sep=' ', header=False, index=False,
+                        columns=['label', method, 'Target', 'Title', 'method'])
         
         for d in cnns:
             for stype in ['CNNscore', 'CNNaffinity']:
-                for stat in ['mean', 'median', 'max', 'min']:
-                    print('Writing out summary max file for %s-%s-%s' %(d,stype,stat))
-                    output_max_summary(df, grouped, '%s-%s-%s' %(d, stype, stat))
-                    print('Writing out summary min file for %s-%s-%s' %(d,stype,stat))
-                    output_min_summary(df, grouped, '%s-%s-%s' %(d, stype, stat))
+                if not args.justseeds:
+                    for stat in ['mean', 'median', 'max', 'min']:
+                        print('Writing out summary max file for %s-%s-%s' %(d,stype,stat))
+                        output_max_summary(df, grouped, '%s-%s-%s' %(d, stype, stat))
+                        print('Writing out summary min file for %s-%s-%s' %(d,stype,stat))
+                        output_min_summary(df, grouped, '%s-%s-%s' %(d, stype, stat))
+                else:
+                    snames = ['%s_seed%d_%s' %(d, seed, stype) for seed in list(range(5))]
+                    for seed in snames:
+                        print('Writing out summary max file for %s' %(seed))
+                        output_max_summary(df, grouped, '%s' %(seed))
+                        print('Writing out summary min file for %s' %(seed))
+                        output_min_summary(df, grouped, '%s' %(seed))
     if args.csv:
         df = pd.DataFrame()
         for csv in args.csv:
@@ -97,7 +110,7 @@ if __name__ == '__main__':
         cols = list(df)
         if 'Vinardo' in cols:
             df.loc[:,'Vinardo'] = df[['Vinardo']].mul(-1) 
-        df["label"] = [0 if "decoy" in item else 1 for item in df["File"]]
+        df["label"] = [0 if (("decoy" in item) or ('inactive' in item)) else 1 for item in df["File"]]
         methods = set(cols) - set(exclude)
 
         for method in methods:
